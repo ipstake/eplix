@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- TEE signers of the tee-signer project: the runner's framed protocol (IDENTITY v1) over
+       mutual TLS, a warm connection pool per runner with two priority classes, and the
+       attestation verifiers (dev, Azure MAA, AWS Nitro, GCP Confidential Space). No packages
+       beyond the BCL. -p:EplixTee=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Backend.Tee</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Wire.fs" />
+    <Compile Include="Cbor.fs" />
+    <Compile Include="Jwt.fs" />
+    <Compile Include="Attest.fs" />
+    <Compile Include="Connection.fs" />
+    <Compile Include="Pool.fs" />
+    <Compile Include="TeeBackend.fs" />
+    <Compile Include="TeeModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

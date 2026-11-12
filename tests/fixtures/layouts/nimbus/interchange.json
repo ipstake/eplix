@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "interchange_format_version": "5",
+    "genesis_validators_root": "0x212f13fc4df078b6cb7db228f1c8307566dcecf900867401a92023d7ba99cb5f"
+  },
+  "data": [
+    {
+      "pubkey": "0x92f46b0dcc7db24f4946b5773b5525efa0bbb0810088588323d9de84f0e42f22df96cbb97065b49a2006c653ec8060f4",
+      "signed_blocks": [
+        {
+          "slot": "1000",
+          "signing_root": "0x1010101010101010101010101010101010101010101010101010101010101010"
+        }
+      ],
+      "signed_attestations": [
+        {
+          "source_epoch": "30",
+          "target_epoch": "31",
+          "signing_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    }
+  ]
+}

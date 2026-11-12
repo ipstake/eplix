@@ -1,0 +1,26 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Eplix.Backend.Dirk/Eplix.Backend.Dirk.fsproj" />
+    <Project Path="src/Eplix.Backend.Local/Eplix.Backend.Local.fsproj" />
+    <Project Path="src/Eplix.Backend.Tee/Eplix.Backend.Tee.fsproj" />
+    <Project Path="src/Eplix.Backend.Web3Signer/Eplix.Backend.Web3Signer.fsproj" />
+    <Project Path="src/Eplix.Builder/Eplix.Builder.fsproj" />
+    <Project Path="src/Eplix.BuilderLegacy/Eplix.BuilderLegacy.fsproj" />
+    <Project Path="src/Eplix.Core/Eplix.Core.fsproj" />
+    <Project Path="src/Eplix.Gloas/Eplix.Gloas.fsproj" />
+    <Project Path="src/Eplix.Doppelganger/Eplix.Doppelganger.fsproj" />
+    <Project Path="src/Eplix.Keymanager/Eplix.Keymanager.fsproj" />
+    <Project Path="src/Eplix.Metrics/Eplix.Metrics.fsproj" />
+    <Project Path="src/Eplix.Obol/Eplix.Obol.fsproj" />
+    <Project Path="src/Eplix.Monitor/Eplix.Monitor.fsproj" />
+    <Project Path="src/Eplix.Graffiti/Eplix.Graffiti.fsproj" />
+    <Project Path="src/Eplix.Tracing/Eplix.Tracing.fsproj" />
+    <Project Path="src/Eplix/Eplix.fsproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Eplix.Bench/Eplix.Bench.fsproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Eplix.Tests/Eplix.Tests.fsproj" />
+  </Folder>
+</Solution>

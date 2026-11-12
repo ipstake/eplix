@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Eplix</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Hex.fs" />
+    <Compile Include="Bounds.fs" />
+    <Compile Include="Types.fs" />
+    <Compile Include="Ssz.fs" />
+    <Compile Include="Containers.fs" />
+    <Compile Include="ChainSpec.fs" />
+    <Compile Include="Networks.fs" />
+    <Compile Include="Signing.fs" />
+    <Compile Include="Bls.fs" />
+    <Compile Include="Json.fs" />
+    <Compile Include="SszJson.fs" />
+    <Compile Include="Backend.fs" />
+    <Compile Include="SigningJitter.fs" />
+    <Compile Include="Log.fs" />
+    <Compile Include="ClientCert.fs" />
+    <Compile Include="Metrics.fs" />
+    <Compile Include="TlsFiles.fs" />
+    <Compile Include="Tracing.fs" />
+    <Compile Include="Threshold.fs" />
+    <Compile Include="RemoteCheck.fs" />
+    <Compile Include="SlotClock.fs" />
+    <Compile Include="Slashing/Marks.fs" />
+    <Compile Include="Slashing/MarkFile.fs" />
+    <Compile Include="Slashing/Interchange.fs" />
+    <Compile Include="Slashing/InterchangeStream.fs" />
+    <Compile Include="Slashing/SlashingDb.fs" />
+    <Compile Include="Slashing/SlotMarks.fs" />
+    <Compile Include="Slashing/Floor.fs" />
+    <Compile Include="Switches.fs" />
+    <Compile Include="Beacon/BeaconApi.fs" />
+    <Compile Include="Beacon/BeaconNodes.fs" />
+    <Compile Include="Config.fs" />
+    <Compile Include="EndpointAttestation.fs" />
+    <Compile Include="KeyRegistry.fs" />
+    <Compile Include="Graffiti.fs" />
+    <Compile Include="ProposerConfig.fs" />
+    <Compile Include="Pipeline.fs" />
+    <Compile Include="KeyRetirement.fs" />
+    <Compile Include="Module.fs" />
+    <Compile Include="SlashedKeys.fs" />
+    <Compile Include="Validators.fs" />
+    <Compile Include="Scheduler.fs" />
+    <Compile Include="Runner.fs" />
+    <Compile Include="FloorImport.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Nethermind.Crypto.Bls" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Eplix.Tests" />
+    <InternalsVisibleTo Include="Eplix.Bench" />
+  </ItemGroup>
+</Project>

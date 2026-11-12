@@ -1,0 +1,8 @@
+topic: beacon_attestation
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+messages:
+- {subnet_id: 0, current_time_ms: 95499, message: 
+    single_attestation_0xd646f40f3224419317629cbd6b904a7143988e1a9a3f829168654bc57fa79f98,
+  expected: ignore, reason: attestation slot is from a future slot}

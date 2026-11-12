@@ -1,0 +1,6 @@
+preset: minimal
+fork: gloas
+runner: operations
+handler: proposer_slashing
+suite: pyspec_tests
+case: headers_differ_only_state_root

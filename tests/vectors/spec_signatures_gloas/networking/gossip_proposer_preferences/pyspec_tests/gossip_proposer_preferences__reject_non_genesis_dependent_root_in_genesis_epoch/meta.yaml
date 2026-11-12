@@ -1,0 +1,11 @@
+topic: proposer_preferences
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+- {block: 
+    block_0x2bdd11129831a9f7045c6cba57db119b16c42192f8a0abd3f248bea2f21d15b2}
+messages:
+- {current_time_ms: 6100, message: 
+    proposer_preferences_0x17566172c1781eeccc6d11dfc448d7c5a13e180923a1848ea55f4fc27f40e28f,
+  expected: reject, reason: dependent block is after the shuffling dependent 
+    slot}

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Gloas duties module: PTC votes, produceBlockV4 proposals with the
+       self-built payload envelope, proposer preferences. A chain that schedules Gloas needs it;
+       -p:EplixGloas=false drops it from a Fulu-only build. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Gloas</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="GloasDuties.fs" />
+    <Compile Include="GloasModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Eplix.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

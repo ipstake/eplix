@@ -1,0 +1,22 @@
+{
+  "type": "PROPOSER_PREFERENCES",
+  "fork_info": {
+    "fork": {
+      "previous_version": "0x06000001",
+      "current_version": "0x07000001",
+      "epoch": "10"
+    },
+    "genesis_validators_root": "0xa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+  },
+  "signingRoot": "0x1fda2ee6eee632880dce1e87fc41ea1557947ae2c5c7eb60451d32e26399f85b",
+  "proposer_preferences": {
+    "version": "GLOAS",
+    "data": {
+      "dependent_root": "0x030000000000000000000000000000000000000000000000000000000000005a",
+      "proposal_slot": "82",
+      "validator_index": "1",
+      "fee_recipient": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "target_gas_limit": "60000000"
+    }
+  }
+}

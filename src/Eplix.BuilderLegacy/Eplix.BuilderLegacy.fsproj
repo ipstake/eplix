@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The legacy builder module: the pre-Gloas builder flow (MEV-Boost, builder-specs). Validator
+       registrations each epoch and produceBlockV3 with builder_boost_factor; the scheduler signs and
+       publishes the blinded block. Off from the Gloas fork on. -p:EplixBuilderLegacy=false drops
+       it; the VC then asks every pre-Gloas node for a local block. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.BuilderLegacy</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="LegacyBuilderModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

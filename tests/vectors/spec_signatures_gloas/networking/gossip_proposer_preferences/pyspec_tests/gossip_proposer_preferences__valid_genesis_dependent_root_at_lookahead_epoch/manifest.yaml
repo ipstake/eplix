@@ -1,0 +1,6 @@
+preset: minimal
+fork: gloas
+runner: networking
+handler: gossip_proposer_preferences
+suite: pyspec_tests
+case: gossip_proposer_preferences__valid_genesis_dependent_root_at_lookahead_epoch

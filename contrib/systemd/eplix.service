@@ -1,0 +1,61 @@
+# Eplix as a systemd service, sandboxed. Install steps and the paths it expects are in
+# docs/runbook.md ("Install"). The only writable path is the data dir /var/lib/eplix
+# (StateDirectory); everything else is read-only or hidden. contrib/systemd/sandbox-check.sh runs
+# the binary under the same file system limits without systemd.
+[Unit]
+Description=Eplix validator client
+Documentation=file:/usr/local/share/doc/eplix/runbook.md
+Wants=network-online.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=exec
+User=eplix
+Group=eplix
+ExecStart=/usr/local/lib/eplix/eplix run --config /etc/eplix/eplix.json
+# A start that fails (config, beacon node, slashing DB) and a doppelganger stop exit with 1; the
+# restart retries the start, and a doppelganger key is checked again before it signs.
+Restart=on-failure
+RestartSec=30
+# SIGTERM lets the VC finish the slot's writes; it exits well within this.
+TimeoutStopSec=30
+LimitNOFILE=65536
+UMask=0077
+
+# The data dir: slashing DB, marks, keymanager token, switches.json.
+StateDirectory=eplix
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/eplix
+
+# File system: read-only everywhere except StateDirectory and ReadWritePaths.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+
+# Privileges: none to gain, none held.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RemoveIPC=yes
+
+# Network and system calls: TCP/UDP over IPv4 and IPv6 and Unix sockets only.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @mount @swap @reboot @debug @obsolete @cpu-emulation
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,93 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The eplix binary. Modules are linked at build time: -p:EplixLocal=false drops the local backend,
+       -p:EplixKeymanager=false the keymanager API, -p:EplixDirk=false the Dirk backend,
+       -p:EplixWeb3Signer=false the Web3Signer backend, -p:EplixTee=false the TEE signer backend,
+       -p:EplixGloas=false the Gloas duties (the VC then refuses a chain that schedules Gloas),
+       -p:EplixBuilder=false the builder module, -p:EplixBuilderLegacy=false the pre-Gloas builder flow,
+       -p:EplixMetrics=false the metrics endpoint,
+       -p:EplixDoppelganger=false doppelganger protection, -p:EplixObol=false Obol mode,
+       -p:EplixMonitor=false the validator monitor, -p:EplixGraffiti=false the graffiti file,
+       -p:EplixTracing=false OpenTelemetry tracing. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>eplix</AssemblyName>
+    <RootNamespace>Eplix.Host</RootNamespace>
+    <EplixLocal Condition="'$(EplixLocal)' == ''">true</EplixLocal>
+    <DefineConstants Condition="'$(EplixLocal)' == 'true'">$(DefineConstants);EPLIX_LOCAL</DefineConstants>
+    <EplixKeymanager Condition="'$(EplixKeymanager)' == ''">true</EplixKeymanager>
+    <DefineConstants Condition="'$(EplixKeymanager)' == 'true'">$(DefineConstants);EPLIX_KEYMANAGER</DefineConstants>
+    <EplixDirk Condition="'$(EplixDirk)' == ''">true</EplixDirk>
+    <DefineConstants Condition="'$(EplixDirk)' == 'true'">$(DefineConstants);EPLIX_DIRK</DefineConstants>
+    <EplixWeb3Signer Condition="'$(EplixWeb3Signer)' == ''">true</EplixWeb3Signer>
+    <DefineConstants Condition="'$(EplixWeb3Signer)' == 'true'">$(DefineConstants);EPLIX_WEB3SIGNER</DefineConstants>
+    <EplixTee Condition="'$(EplixTee)' == ''">true</EplixTee>
+    <DefineConstants Condition="'$(EplixTee)' == 'true'">$(DefineConstants);EPLIX_TEE</DefineConstants>
+    <EplixGloas Condition="'$(EplixGloas)' == ''">true</EplixGloas>
+    <DefineConstants Condition="'$(EplixGloas)' == 'true'">$(DefineConstants);EPLIX_GLOAS</DefineConstants>
+    <EplixBuilder Condition="'$(EplixBuilder)' == ''">true</EplixBuilder>
+    <DefineConstants Condition="'$(EplixBuilder)' == 'true'">$(DefineConstants);EPLIX_BUILDER</DefineConstants>
+    <EplixBuilderLegacy Condition="'$(EplixBuilderLegacy)' == ''">true</EplixBuilderLegacy>
+    <DefineConstants Condition="'$(EplixBuilderLegacy)' == 'true'">$(DefineConstants);EPLIX_BUILDER_LEGACY</DefineConstants>
+    <EplixMetrics Condition="'$(EplixMetrics)' == ''">true</EplixMetrics>
+    <DefineConstants Condition="'$(EplixMetrics)' == 'true'">$(DefineConstants);EPLIX_METRICS</DefineConstants>
+    <EplixMonitor Condition="'$(EplixMonitor)' == ''">true</EplixMonitor>
+    <DefineConstants Condition="'$(EplixMonitor)' == 'true'">$(DefineConstants);EPLIX_MONITOR</DefineConstants>
+    <EplixDoppelganger Condition="'$(EplixDoppelganger)' == ''">true</EplixDoppelganger>
+    <DefineConstants Condition="'$(EplixDoppelganger)' == 'true'">$(DefineConstants);EPLIX_DOPPELGANGER</DefineConstants>
+    <EplixObol Condition="'$(EplixObol)' == ''">true</EplixObol>
+    <DefineConstants Condition="'$(EplixObol)' == 'true'">$(DefineConstants);EPLIX_OBOL</DefineConstants>
+    <EplixGraffiti Condition="'$(EplixGraffiti)' == ''">true</EplixGraffiti>
+    <DefineConstants Condition="'$(EplixGraffiti)' == 'true'">$(DefineConstants);EPLIX_GRAFFITI</DefineConstants>
+    <EplixTracing Condition="'$(EplixTracing)' == ''">true</EplixTracing>
+    <DefineConstants Condition="'$(EplixTracing)' == 'true'">$(DefineConstants);EPLIX_TRACING</DefineConstants>
+  </PropertyGroup>
+
+  <!-- NativeAOT publish: dotnet publish src/Eplix -c Release -r linux-x64 -->
+  <PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <!-- ICU on: EIP-2335 passwords need NFKD, which invariant globalization skips. The host needs libicu. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <StackTraceSupport>true</StackTraceSupport>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <IlcGenerateStackTraceData>true</IlcGenerateStackTraceData>
+    <!-- Show each trim and AOT warning instead of one line per assembly. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- FSharp.Core reports trim and AOT warnings in printf and %A formatting, which the VC does not call.
+         scripts/publish-aot.sh fails the publish if any warning comes from elsewhere. -->
+    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
+    <EventSourceSupport>false</EventSourceSupport>
+    <DebuggerSupport>false</DebuggerSupport>
+    <AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+  </PropertyGroup>
+
+  <!-- x64 needs AVX: the baseline is x86-64-v2 plus AVX, and the binary stops at start on a CPU
+       without it. AVX2 stays a run-time check, so SSZ hashing takes 8 lanes where the CPU has it
+       (Ssz.fs, PairHash.Wide). A caller can still pass another IlcInstructionSet. -->
+  <PropertyGroup Condition="'$(IlcInstructionSet)' == '' and $(RuntimeIdentifier.EndsWith('-x64'))">
+    <IlcInstructionSet>x86-64-v2,avx</IlcInstructionSet>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Modules.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+    <ProjectReference Include="../Eplix.Backend.Local/Eplix.Backend.Local.fsproj" Condition="'$(EplixLocal)' == 'true'" />
+    <ProjectReference Include="../Eplix.Keymanager/Eplix.Keymanager.fsproj" Condition="'$(EplixKeymanager)' == 'true'" />
+    <ProjectReference Include="../Eplix.Backend.Dirk/Eplix.Backend.Dirk.fsproj" Condition="'$(EplixDirk)' == 'true'" />
+    <ProjectReference Include="../Eplix.Backend.Web3Signer/Eplix.Backend.Web3Signer.fsproj" Condition="'$(EplixWeb3Signer)' == 'true'" />
+    <ProjectReference Include="../Eplix.Backend.Tee/Eplix.Backend.Tee.fsproj" Condition="'$(EplixTee)' == 'true'" />
+    <ProjectReference Include="../Eplix.Gloas/Eplix.Gloas.fsproj" Condition="'$(EplixGloas)' == 'true'" />
+    <ProjectReference Include="../Eplix.Builder/Eplix.Builder.fsproj" Condition="'$(EplixBuilder)' == 'true'" />
+    <ProjectReference Include="../Eplix.BuilderLegacy/Eplix.BuilderLegacy.fsproj" Condition="'$(EplixBuilderLegacy)' == 'true'" />
+    <ProjectReference Include="../Eplix.Metrics/Eplix.Metrics.fsproj" Condition="'$(EplixMetrics)' == 'true'" />
+    <ProjectReference Include="../Eplix.Doppelganger/Eplix.Doppelganger.fsproj" Condition="'$(EplixDoppelganger)' == 'true'" />
+    <ProjectReference Include="../Eplix.Obol/Eplix.Obol.fsproj" Condition="'$(EplixObol)' == 'true'" />
+    <ProjectReference Include="../Eplix.Monitor/Eplix.Monitor.fsproj" Condition="'$(EplixMonitor)' == 'true'" />
+    <ProjectReference Include="../Eplix.Graffiti/Eplix.Graffiti.fsproj" Condition="'$(EplixGraffiti)' == 'true'" />
+    <ProjectReference Include="../Eplix.Tracing/Eplix.Tracing.fsproj" Condition="'$(EplixTracing)' == 'true'" />
+  </ItemGroup>
+</Project>

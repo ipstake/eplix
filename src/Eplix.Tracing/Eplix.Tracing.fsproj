@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The tracing module: an ActivityListener over the core's spans (Tracing.fs) and a hand-written
+       OTLP/HTTP exporter (binary protobuf), no OpenTelemetry package.
+       -p:EplixTracing=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Tracing</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Otlp.fs" />
+    <Compile Include="TracingModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

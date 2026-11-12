@@ -1,0 +1,8 @@
+topic: voluntary_exit
+blocks:
+- {block: 
+    block_0x99e8bcbb017c15825c3857b11157962121462832d173e79c6c420b3c7d2d2887}
+messages:
+- {current_time_ms: 3072000, message: 
+    voluntary_exit_0x65f9ebd7cf9d9f06d407a3f3054b05d2a1234ca79359448813b5b106e1c85ddb,
+  expected: reject, reason: validator is not active}

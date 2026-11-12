@@ -1,0 +1,1642 @@
+{
+ "title": "Eplix",
+ "uid": "eplix-vc",
+ "tags": [
+  "eplix",
+  "validator"
+ ],
+ "timezone": "utc",
+ "schemaVersion": 39,
+ "editable": true,
+ "refresh": "1m",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "description": "Eplix validator client: duties, keys, signing, beacon nodes, chain view, process, TLS files, signer states, builder flow. Alerts and runbook: contrib/prometheus/eplix-alerts.yml, docs/runbook.md.",
+ "templating": {
+  "list": [
+   {
+    "name": "datasource",
+    "type": "datasource",
+    "query": "prometheus",
+    "label": "Data source"
+   },
+   {
+    "name": "job",
+    "type": "custom",
+    "query": "eplix",
+    "current": {
+     "text": "eplix",
+     "value": "eplix"
+    },
+    "label": "Job"
+   },
+   {
+    "name": "instance",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${datasource}"
+    },
+    "query": {
+     "query": "label_values(eplix_build_info{job=\"$job\"}, instance)",
+     "refId": "instance"
+    },
+    "definition": "label_values(eplix_build_info{job=\"$job\"}, instance)",
+    "includeAll": true,
+    "multi": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "refresh": 2,
+    "label": "Instance"
+   }
+  ]
+ },
+ "annotations": {
+  "list": []
+ },
+ "links": [],
+ "panels": [
+  {
+   "type": "row",
+   "title": "Overview",
+   "id": 2,
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "panels": []
+  },
+  {
+   "type": "table",
+   "title": "Build",
+   "id": 3,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 5,
+    "w": 8,
+    "x": 0,
+    "y": 1
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_build_info{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "{{instance}} {{version}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "stat",
+   "title": "Active keys",
+   "id": 4,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 8,
+    "y": 1
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (instance) (eplix_keys{job=\"$job\",instance=~\"$instance\",state=\"active\"})",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "stat",
+   "title": "Keys halted or slashed",
+   "id": 5,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 12,
+    "y": 1
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (instance) (eplix_keys{job=\"$job\",instance=~\"$instance\",state=~\"halted|slashed\"})",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "stat",
+   "title": "Duties missed, 1 h",
+   "id": 6,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 16,
+    "y": 1
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (instance) (increase(eplix_duties_missed_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "stat",
+   "title": "Best beacon node score",
+   "id": 7,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 20,
+    "y": 1
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "max by (instance) (eplix_beacon_node_score{job=\"$job\",instance=~\"$instance\"})",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Keys by state",
+   "id": 8,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 6
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (state) (eplix_keys{job=\"$job\",instance=~\"$instance\"})",
+     "legendFormat": "{{state}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 20
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Duties completed per minute",
+   "id": 9,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 6
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (duty) (rate(eplix_duties_completed_total{job=\"$job\",instance=~\"$instance\"}[5m])) * 60",
+     "legendFormat": "{{duty}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Duties missed by reason, 15 min",
+   "id": 10,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 6
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (duty, reason) (increase(eplix_duties_missed_total{job=\"$job\",instance=~\"$instance\"}[15m]))",
+     "legendFormat": "{{duty}} {{reason}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 20
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Attestations missed, share of duties",
+   "id": 11,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 14
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(eplix_duties_missed_total{job=\"$job\",instance=~\"$instance\",duty=\"attestation\"}[30m])) / (sum(increase(eplix_duties_completed_total{job=\"$job\",instance=~\"$instance\",duty=\"attestation\"}[30m])) + sum(increase(eplix_duties_missed_total{job=\"$job\",instance=~\"$instance\",duty=\"attestation\"}[30m])))",
+     "legendFormat": "missed",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Slashing DB refusals, 15 min",
+   "id": 12,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 14
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (duty) (increase(eplix_slashing_refused_total{job=\"$job\",instance=~\"$instance\"}[15m]))",
+     "legendFormat": "{{duty}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Doppelganger, slashed on chain, retired",
+   "id": 13,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 14
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(eplix_doppelganger_detected_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "doppelganger detected",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(eplix_slashed_on_chain_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "slashed on chain",
+     "refId": "B"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (backend) (increase(eplix_keys_retired_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "retired {{backend}}",
+     "refId": "C"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "row",
+   "title": "Signing",
+   "id": 14,
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 22
+   },
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "Sign requests per second by outcome",
+   "id": 15,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 23
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (backend, outcome) (rate(eplix_sign_requests_total{job=\"$job\",instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{backend}} {{outcome}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Signing time p50 and p99",
+   "id": 16,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 23
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "histogram_quantile(0.5, sum by (backend, le) (rate(eplix_signing_duration_seconds_bucket{job=\"$job\",instance=~\"$instance\"}[5m])))",
+     "legendFormat": "p50 {{backend}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "histogram_quantile(0.99, sum by (backend, le) (rate(eplix_signing_duration_seconds_bucket{job=\"$job\",instance=~\"$instance\"}[5m])))",
+     "legendFormat": "p99 {{backend}}",
+     "refId": "B"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Signer mark log lost and denied, 15 min",
+   "id": 17,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 23
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (signer) (increase(eplix_signer_mark_log_lost_total{job=\"$job\",instance=~\"$instance\"}[15m]))",
+     "legendFormat": "mark log lost {{signer}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (duty) (increase(eplix_signer_denied_total{job=\"$job\",instance=~\"$instance\"}[15m]))",
+     "legendFormat": "denied {{duty}}",
+     "refId": "B"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Slashing DB check, append and fsync p99",
+   "id": 18,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 31
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "histogram_quantile(0.99, sum by (le) (rate(eplix_slashing_check_duration_seconds_bucket{job=\"$job\",instance=~\"$instance\"}[5m])))",
+     "legendFormat": "p99",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Slashing DB size",
+   "id": 19,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 31
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_slashing_db_bytes{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Slashing DB keys",
+   "id": 20,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 31
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_slashing_db_keys{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "{{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "row",
+   "title": "Beacon nodes",
+   "id": 21,
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 39
+   },
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "Health score",
+   "id": 22,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 40
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_beacon_node_score{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "{{node}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Passed the start checks, dropped",
+   "id": 23,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 40
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_beacon_node_ready{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "{{node}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_beacon_node_dropped{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "{{node}} dropped",
+     "refId": "B"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Request errors, share",
+   "id": 24,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 40
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (node) (rate(eplix_beacon_node_requests_total{job=\"$job\",instance=~\"$instance\",result=\"error\"}[5m])) / sum by (node) (rate(eplix_beacon_node_requests_total{job=\"$job\",instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{node}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Sends by result",
+   "id": 25,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 48
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (node, topic, result) (rate(eplix_beacon_node_submissions_total{job=\"$job\",instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{node}} {{topic}} {{result}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Proposer config errors and late checks",
+   "id": 26,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 48
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(eplix_proposer_config_errors_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "errors",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(eplix_proposer_config_late_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "late",
+     "refId": "B"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "row",
+   "title": "Chain (duties monitor)",
+   "id": 27,
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 56
+   },
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "Attestations on chain by outcome",
+   "id": 28,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 57
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (outcome) (increase(eplix_monitor_attestations_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "{{outcome}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 20
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Inclusion distance, mean",
+   "id": 29,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 57
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(rate(eplix_monitor_inclusion_distance_slots_sum{job=\"$job\",instance=~\"$instance\"}[1h])) / sum(rate(eplix_monitor_inclusion_distance_slots_count{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "slots",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Votes that earned their flag",
+   "id": 30,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 57
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (vote) (rate(eplix_monitor_votes_total{job=\"$job\",instance=~\"$instance\",correct=\"true\"}[1h])) / sum by (vote) (rate(eplix_monitor_votes_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "{{vote}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Proposals by outcome",
+   "id": 31,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 65
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (outcome) (increase(eplix_monitor_proposals_total{job=\"$job\",instance=~\"$instance\"}[1d]))",
+     "legendFormat": "{{outcome}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Sync messages by outcome",
+   "id": 32,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 65
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (outcome) (increase(eplix_monitor_sync_messages_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "{{outcome}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Balance change per epoch",
+   "id": 33,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 65
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(eplix_monitor_balance_change_gwei{job=\"$job\",instance=~\"$instance\"})",
+     "legendFormat": "Gwei",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "row",
+   "title": "Process",
+   "id": 34,
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 73
+   },
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "Working set and GC heap",
+   "id": 35,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 74
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_process_working_set_bytes{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "working set {{instance}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_gc_heap_bytes{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "GC heap {{instance}}",
+     "refId": "B"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "CPU",
+   "id": 36,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 74
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (instance, mode) (rate(eplix_process_cpu_seconds_total{job=\"$job\",instance=~\"$instance\"}[5m]))",
+     "legendFormat": "{{instance}} {{mode}}",
+     "refId": "A"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "GC pause share and thread pool queue",
+   "id": 37,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 74
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "rate(eplix_gc_pause_seconds_total{job=\"$job\",instance=~\"$instance\"}[5m])",
+     "legendFormat": "GC pause share {{instance}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_threadpool_queue_length{job=\"$job\",instance=~\"$instance\"}",
+     "legendFormat": "pool queue {{instance}}",
+     "refId": "B"
+    }
+   ],
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "row",
+   "title": "TLS files, signer states, builder flow",
+   "id": 38,
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 82
+   },
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "TLS files, time to expiry",
+   "id": 39,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 0,
+    "y": 83
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_tls_cert_not_after_seconds{job=\"$job\",instance=~\"$instance\"} - time()",
+     "legendFormat": "{{use}} {{name}} {{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "Earliest NotAfter of each certificate or CA file in use, less now.",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "TLS file reloads, 1 h",
+   "id": 40,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 6,
+    "y": 83
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (use, name, result) (increase(eplix_tls_cert_reloads_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "{{use}} {{name}} {{result}}",
+     "refId": "A"
+    }
+   ],
+   "description": "Changed TLS files read while running, by result.",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Signers not ready",
+   "id": 41,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 12,
+    "y": 83
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "eplix_signer_state{job=\"$job\",instance=~\"$instance\",state!=\"ready\"}",
+     "legendFormat": "{{signer}} {{state}} {{instance}}",
+     "refId": "A"
+    }
+   ],
+   "description": "TEE runners whose HEALTH answer puts them in a state other than ready.",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Builder flow, 1 h",
+   "id": 42,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 18,
+    "y": 83
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (node, result) (increase(eplix_validator_registrations_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "registrations {{node}} {{result}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (result) (increase(eplix_blinded_blocks_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "blinded blocks {{result}}",
+     "refId": "B"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(eplix_builder_fallbacks_total{job=\"$job\",instance=~\"$instance\"}[1h]))",
+     "legendFormat": "fallbacks to a local block",
+     "refId": "C"
+    }
+   ],
+   "description": "Validator registrations sent, blinded blocks published or refused, and builder requests that fell back to a local block.",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "type": "timeseries",
+   "title": "Duties lost to an HA peer, 15 min",
+   "id": 43,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 91
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (instance, duty) (increase(eplix_ha_peer_lost_total{job=\"$job\",instance=~\"$instance\"}[15m]))",
+     "legendFormat": "{{instance}} {{duty}}",
+     "refId": "A"
+    }
+   ],
+   "description": "modules.tee.ha_peer: duties the HA peer signed first. Each VC of a pair loses some; compare the pair, see docs/runbook.md \"HA pairs\".",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "stacking": {
+       "mode": "none"
+      },
+      "fillOpacity": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  }
+ ]
+}

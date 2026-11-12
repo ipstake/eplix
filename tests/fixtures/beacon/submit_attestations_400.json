@@ -1,0 +1,10 @@
+{
+  "code": 400,
+  "message": "some failures",
+  "failures": [
+    {
+      "index": 3,
+      "message": "invalid signature"
+    }
+  ]
+}

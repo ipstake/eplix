@@ -1,0 +1,6 @@
+- enabled: true
+  voting_public_key: 0xb3e445d43871965d890a398f719348a1405ac72e35b92727cc570026f54471af7ea7b2040622a8fd0b5bfb2a209b5911
+  description: ''
+  type: local_keystore
+  voting_keystore_path: /srv/layouts/lighthouse/validators/0xb3e445d43871965d890a398f719348a1405ac72e35b92727cc570026f54471af7ea7b2040622a8fd0b5bfb2a209b5911/keystore-m_12381_3600_0_0_0-1792762758.json
+  voting_keystore_password: layout-test-pw

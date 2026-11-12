@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Microbenchmarks of the hot paths (BenchmarkDotNet, JIT, in process). Not part of the binary.
+       Run: dotnet run -c Release (project benchmarks/Eplix.Bench), filter argument as BenchmarkDotNet takes it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <Nullable>disable</Nullable>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Benchmarks.fs" />
+    <Compile Include="DirkBench.fs" />
+    <Compile Include="ThresholdBench.fs" />
+    <Compile Include="W3sAttestBench.fs" />
+    <Compile Include="SlashingMergeBench.fs" />
+    <Compile Include="PubKeyHashBench.fs" />
+    <Compile Include="PubKeyHashBdn.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Eplix.Core/Eplix.Core.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Backend.Local/Eplix.Backend.Local.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Backend.Dirk/Eplix.Backend.Dirk.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Backend.Web3Signer/Eplix.Backend.Web3Signer.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+</Project>

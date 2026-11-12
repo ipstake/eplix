@@ -1,0 +1,1 @@
+{"metadata":{"interchange_format_version":"5","genesis_validators_root":"0x212f13fc4df078b6cb7db228f1c8307566dcecf900867401a92023d7ba99cb5f"},"data":[{"pubkey":"0xb3e445d43871965d890a398f719348a1405ac72e35b92727cc570026f54471af7ea7b2040622a8fd0b5bfb2a209b5911","signed_blocks":[{"slot":"1000"}],"signed_attestations":[{"source_epoch":"30","target_epoch":"31"}]}]}

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Dirk backend: gRPC over mutual TLS through Grpc.Net.Client, with the few
+       messages of Dirk's API written by hand (Protobuf.fs, Messages.fs) instead of generated.
+       -p:EplixDirk=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Backend.Dirk</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Protobuf.fs" />
+    <Compile Include="Messages.fs" />
+    <Compile Include="DirkApi.fs" />
+    <Compile Include="DirkBackend.fs" />
+    <Compile Include="DirkModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" />
+  </ItemGroup>
+</Project>

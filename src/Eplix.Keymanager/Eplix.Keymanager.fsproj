@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The keymanager API module. Kestrel through WebApplication.CreateSlimBuilder,
+       handlers as RequestDelegate (no minimal-API delegate binding, which needs reflection or a
+       C# source generator). -p:EplixKeymanager=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Keymanager</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ImportBody.fs" />
+    <Compile Include="KeymanagerApi.fs" />
+    <Compile Include="KeymanagerModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

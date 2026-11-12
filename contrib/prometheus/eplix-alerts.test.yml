@@ -1,0 +1,369 @@
+# Unit tests of contrib/prometheus/eplix-alerts.yml: `promtool test rules eplix-alerts.test.yml`
+# (scripts/check-ops.py runs it when PROMTOOL names the binary). Each alert has a series that
+# fires it; the alerts with a threshold or a window also have one that does not.
+rule_files: [eplix-alerts.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - {series: 'up{job="eplix",instance="vc1"}', values: '0x10'}
+      - {series: 'up{job="eplix",instance="vc2"}', values: '1x10'}
+    alert_rule_test:
+      - {eval_time: 1m, alertname: EplixDown, exp_alerts: []}
+      - eval_time: 3m
+        alertname: EplixDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: eplix, instance: vc1}
+            exp_annotations: {summary: "Eplix on vc1 does not answer scrapes", runbook_url: "docs/runbook.md#eplixdown"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="active"}', values: '3x40'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc1",duty="attestation"}', values: '10x40'}
+      - {series: 'eplix_keys{job="eplix",instance="vc2",state="active"}', values: '3x40'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc2",duty="attestation"}', values: '0+1x40'}
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: EplixNoDutiesCompleted
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1}
+            exp_annotations: {summary: "Eplix on vc1 has active keys and completed no duty in 15 minutes", runbook_url: "docs/runbook.md#eplixnodutiescompleted"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc1",duty="attestation",reason="beacon_node"}', values: '0x10 1x30'}
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc1",duty="block",reason="submit"}', values: '0x40'}
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EplixDutiesMissed
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, duty: attestation, reason: beacon_node}
+            exp_annotations: {summary: "Eplix on vc1 missed 1 attestation duties (beacon_node)", runbook_url: "docs/runbook.md#eplixdutiesmissed"}
+      - {eval_time: 40m, alertname: EplixDutiesMissed, exp_alerts: []}
+
+  - interval: 1m
+    input_series:
+      # vc1 misses 1 in 4 attestations, vc2 1 in 20.
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc1",duty="attestation",reason="signer_error"}', values: '0+1x60'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc1",duty="attestation"}', values: '0+3x60'}
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc2",duty="attestation",reason="signer_error"}', values: '0+1x60'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc2",duty="attestation"}', values: '0+19x60'}
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: EplixAttestationsMissedHigh
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1}
+            exp_annotations: {summary: "Eplix on vc1 missed 25% of its attestations in 30 minutes", runbook_url: "docs/runbook.md#eplixattestationsmissedhigh"}
+
+  # An operator switch pauses every duty of vc1: its misses carry reason="paused" and fire
+  # nothing. vc2 completes nothing with no pause and still fires EplixNoDutiesCompleted. vc3
+  # pauses 1 of its 4 keys (about 2 paused attestations in 15m) and completes nothing with the
+  # other 3: the pause does not hide that, so it fires too.
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="active"}', values: '3x60'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc1",duty="attestation"}', values: '10x60'}
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc1",duty="attestation",reason="paused"}', values: '0+1x60'}
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc1",duty="block",reason="paused"}', values: '0x10 1x50'}
+      - {series: 'eplix_keys{job="eplix",instance="vc2",state="active"}', values: '3x60'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc2",duty="attestation"}', values: '10x60'}
+      - {series: 'eplix_keys{job="eplix",instance="vc3",state="active"}', values: '4x60'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc3",duty="attestation"}', values: '10x60'}
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc3",duty="attestation",reason="paused"}', values: '0+0.15x60'}
+    alert_rule_test:
+      - {eval_time: 20m, alertname: EplixDutiesMissed, exp_alerts: []}
+      - {eval_time: 45m, alertname: EplixAttestationsMissedHigh, exp_alerts: []}
+      - eval_time: 30m
+        alertname: EplixNoDutiesCompleted
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc2}
+            exp_annotations: {summary: "Eplix on vc2 has active keys and completed no duty in 15 minutes", runbook_url: "docs/runbook.md#eplixnodutiescompleted"}
+          - exp_labels: {severity: critical, instance: vc3}
+            exp_annotations: {summary: "Eplix on vc3 has active keys and completed no duty in 15 minutes", runbook_url: "docs/runbook.md#eplixnodutiescompleted"}
+
+  # An HA pair (modules.tee.ha_peer): vc1 signs one attestation in four and loses the others to
+  # its peer; vc2 loses every duty to its peer and completes nothing. Misses with
+  # reason="lost_to_peer" fire nothing.
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="active"}', values: '4x60'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc1",duty="attestation"}', values: '0+1x60'}
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc1",duty="attestation",reason="lost_to_peer"}', values: '0+3x60'}
+      - {series: 'eplix_keys{job="eplix",instance="vc2",state="active"}', values: '4x60'}
+      - {series: 'eplix_duties_completed_total{job="eplix",instance="vc2",duty="attestation"}', values: '10x60'}
+      - {series: 'eplix_duties_missed_total{job="eplix",instance="vc2",duty="attestation",reason="lost_to_peer"}', values: '0+1x60'}
+    alert_rule_test:
+      - {eval_time: 20m, alertname: EplixDutiesMissed, exp_alerts: []}
+      - {eval_time: 45m, alertname: EplixAttestationsMissedHigh, exp_alerts: []}
+      - {eval_time: 30m, alertname: EplixNoDutiesCompleted, exp_alerts: []}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="active"}', values: '0x60'}
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="discovered"}', values: '4x60'}
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="removed"}', values: '0x60'}
+      - {series: 'eplix_keys{job="eplix",instance="vc2",state="active"}', values: '4x60'}
+      - {series: 'eplix_keys{job="eplix",instance="vc3",state="removed"}', values: '2x60'}
+    alert_rule_test:
+      - {eval_time: 20m, alertname: EplixNoActiveKeys, exp_alerts: []}
+      - eval_time: 45m
+        alertname: EplixNoActiveKeys
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1}
+            exp_annotations: {summary: "Eplix on vc1 has keys and none is active", runbook_url: "docs/runbook.md#eplixnoactivekeys"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="halted"}', values: '0 0 2x10'}
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="slashed"}', values: '0x12'}
+      - {series: 'eplix_slashed_on_chain_total{job="eplix",instance="vc2"}', values: '0 0 1x10'}
+      - {series: 'eplix_doppelganger_detected_total{job="eplix",instance="vc3"}', values: '0 0 1x10'}
+      - {series: 'eplix_keys{job="eplix",instance="vc4",state="doppelganger_wait"}', values: '3x60'}
+      - {series: 'eplix_keys_refused{job="eplix",instance="vc5"}', values: '0 0 1x10'}
+      - {series: 'eplix_keys_refused{job="eplix",instance="vc6"}', values: '0x12'}
+    alert_rule_test:
+      - {eval_time: 1m, alertname: EplixKeyHalted, exp_alerts: []}
+      - eval_time: 5m
+        alertname: EplixKeyHalted
+        exp_alerts:
+          - exp_labels: {severity: critical, job: eplix, instance: vc1, state: halted}
+            exp_annotations: {summary: "Eplix on vc1 halted 2 keys", runbook_url: "docs/runbook.md#eplixkeyhalted"}
+      - {eval_time: 1m, alertname: EplixKeyRefused, exp_alerts: []}
+      - eval_time: 5m
+        alertname: EplixKeyRefused
+        exp_alerts:
+          - exp_labels: {severity: critical, job: eplix, instance: vc5}
+            exp_annotations: {summary: "Eplix on vc5 refused 1 keys until restart", runbook_url: "docs/runbook.md#eplixkeyrefused"}
+      - eval_time: 5m
+        alertname: EplixKeySlashed
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc2}
+            exp_annotations: {summary: "A key of Eplix on vc2 is slashed on chain", runbook_url: "docs/runbook.md#eplixkeyslashed"}
+      - eval_time: 5m
+        alertname: EplixDoppelgangerDetected
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc3}
+            exp_annotations: {summary: "Eplix on vc3 found a waiting key live on chain", runbook_url: "docs/runbook.md#eplixdoppelgangerdetected"}
+      - {eval_time: 30m, alertname: EplixKeysWaiting, exp_alerts: []}
+      - eval_time: 50m
+        alertname: EplixKeysWaiting
+        exp_alerts:
+          - exp_labels: {severity: warning, job: eplix, instance: vc4, state: doppelganger_wait}
+            exp_annotations: {summary: "3 keys of Eplix on vc4 wait in the doppelganger check for over 45 minutes", runbook_url: "docs/runbook.md#eplixkeyswaiting"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_keys{job="eplix",instance="vc1",state="slashed"}', values: '0 1x10'}
+      - {series: 'eplix_slashing_refused_total{job="eplix",instance="vc1",duty="attestation"}', values: '0x10 1x20'}
+      - {series: 'eplix_keys_retired_total{job="eplix",instance="vc1",backend="web3signer"}', values: '0x10 2x20'}
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EplixKeySlashed
+        exp_alerts:
+          - exp_labels: {severity: critical, job: eplix, instance: vc1, state: slashed}
+            exp_annotations: {summary: "A key of Eplix on vc1 is slashed on chain", runbook_url: "docs/runbook.md#eplixkeyslashed"}
+      - eval_time: 15m
+        alertname: EplixSlashingProtectionRefused
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, duty: attestation}
+            exp_annotations: {summary: "The slashing DB of Eplix on vc1 refused 1 attestation requests", runbook_url: "docs/runbook.md#eplixslashingprotectionrefused"}
+      - eval_time: 15m
+        alertname: EplixKeysRetired
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, backend: web3signer}
+            exp_annotations: {summary: "Eplix on vc1 retired keys its web3signer signers no longer list", runbook_url: "docs/runbook.md#eplixkeysretired"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_signer_mark_log_lost_total{job="eplix",instance="vc1",signer="r1"}', values: '0x5 1x80'}
+      - {series: 'eplix_signer_mark_log_lost_total{job="eplix",instance="vc1",signer="r2"}', values: '0x85'}
+      - {series: 'eplix_signer_denied_total{job="eplix",instance="vc1",key="0xaa",duty="block"}', values: '0x5 1x10'}
+      - {series: 'eplix_remote_signature_invalid_total{job="eplix",instance="vc1",backend="dirk",endpoint="dirk1:9091"}', values: '0x5 1x10'}
+      - {series: 'eplix_remote_signature_invalid_total{job="eplix",instance="vc1",backend="web3signer",endpoint="https://w3s-2:9000/"}', values: '0x15'}
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="dirk",duty="attestation",outcome="signed"}', values: '0+90x30'}
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="dirk",duty="attestation",outcome="failed"}', values: '0+10x30'}
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="local",duty="attestation",outcome="signed"}', values: '0+100x30'}
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="local",duty="attestation",outcome="failed"}', values: '0x30'}
+      - {series: 'eplix_signing_duration_seconds_bucket{job="eplix",instance="vc1",backend="tee",duty="attestation",le="0.5"}', values: '0+10x30'}
+      - {series: 'eplix_signing_duration_seconds_bucket{job="eplix",instance="vc1",backend="tee",duty="attestation",le="2.5"}', values: '0+100x30'}
+      - {series: 'eplix_signing_duration_seconds_bucket{job="eplix",instance="vc1",backend="tee",duty="attestation",le="+Inf"}', values: '0+100x30'}
+    alert_rule_test:
+      - {eval_time: 4m, alertname: EplixSignerMarkLogLost, exp_alerts: []}
+      - eval_time: 10m
+        alertname: EplixSignerMarkLogLost
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1, signer: r1}
+            exp_annotations: {summary: "TEE runner r1 of Eplix on vc1 lost its slashing mark log", runbook_url: "docs/runbook.md#eplixsignermarkloglost"}
+      - {eval_time: 70m, alertname: EplixSignerMarkLogLost, exp_alerts: []}
+      - eval_time: 10m
+        alertname: EplixSignerDenied
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, duty: block}
+            exp_annotations: {summary: "A remote signer denied 1 block requests of Eplix on vc1", runbook_url: "docs/runbook.md#eplixsignerdenied"}
+      - {eval_time: 4m, alertname: EplixRemoteSignatureInvalid, exp_alerts: []}
+      - eval_time: 10m
+        alertname: EplixRemoteSignatureInvalid
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1, backend: dirk, endpoint: "dirk1:9091"}
+            exp_annotations: {summary: "dirk dirk1:9091 returned 1 signatures that do not verify to Eplix on vc1", runbook_url: "docs/runbook.md#eplixremotesignatureinvalid"}
+      - eval_time: 20m
+        alertname: EplixSignerErrors
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, backend: dirk}
+            exp_annotations: {summary: "10% of the dirk requests of Eplix on vc1 failed", runbook_url: "docs/runbook.md#eplixsignererrors"}
+      - eval_time: 25m
+        alertname: EplixSigningSlow
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, backend: tee}
+            exp_annotations: {summary: "p99 signing time of the tee backend of Eplix on vc1 is 2.478s", runbook_url: "docs/runbook.md#eplixsigningslow"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_beacon_node_ready{job="eplix",instance="vc1",node="bn-a"}', values: '0x20'}
+      - {series: 'eplix_beacon_node_ready{job="eplix",instance="vc1",node="bn-b"}', values: '0x20'}
+      - {series: 'eplix_beacon_node_ready{job="eplix",instance="vc2",node="bn-a"}', values: '0x20'}
+      - {series: 'eplix_beacon_node_ready{job="eplix",instance="vc2",node="bn-b"}', values: '1x20'}
+      - {series: 'eplix_beacon_node_score{job="eplix",instance="vc1",node="bn-a"}', values: '40x30'}
+      - {series: 'eplix_beacon_node_dropped{job="eplix",instance="vc1",node="bn-a"}', values: '0x5 1x20'}
+      - {series: 'eplix_beacon_node_dropped{job="eplix",instance="vc1",node="bn-b"}', values: '0x20'}
+      - {series: 'eplix_beacon_node_score{job="eplix",instance="vc1",node="bn-b"}', values: '30x30'}
+      - {series: 'eplix_beacon_node_score{job="eplix",instance="vc2",node="bn-a"}', values: '20x30'}
+      - {series: 'eplix_beacon_node_score{job="eplix",instance="vc2",node="bn-b"}', values: '100x30'}
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EplixNoReadyBeaconNode
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1}
+            exp_annotations: {summary: "No beacon node of Eplix on vc1 passed the start checks", runbook_url: "docs/runbook.md#eplixnoreadybeaconnode"}
+      - eval_time: 10m
+        alertname: EplixNoHealthyBeaconNode
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1}
+            exp_annotations: {summary: "The best beacon node of Eplix on vc1 scores 40 of 100", runbook_url: "docs/runbook.md#eplixnohealthybeaconnode"}
+      - {eval_time: 10m, alertname: EplixBeaconNodeUnhealthy, exp_alerts: []}
+      - {eval_time: 3m, alertname: EplixBeaconNodeDropped, exp_alerts: []}
+      - eval_time: 10m
+        alertname: EplixBeaconNodeDropped
+        exp_alerts:
+          - exp_labels: {severity: warning, job: eplix, instance: vc1, node: bn-a}
+            exp_annotations: {summary: "A check took beacon node bn-a of Eplix on vc1 out of use until a restart", runbook_url: "docs/runbook.md#eplixbeaconnodedropped"}
+      - eval_time: 20m
+        alertname: EplixBeaconNodeUnhealthy
+        exp_alerts:
+          - exp_labels: {severity: warning, job: eplix, instance: vc1, node: bn-a}
+            exp_annotations: {summary: "Beacon node bn-a of Eplix on vc1 scores 40 of 100", runbook_url: "docs/runbook.md#eplixbeaconnodeunhealthy"}
+          - exp_labels: {severity: warning, job: eplix, instance: vc1, node: bn-b}
+            exp_annotations: {summary: "Beacon node bn-b of Eplix on vc1 scores 30 of 100", runbook_url: "docs/runbook.md#eplixbeaconnodeunhealthy"}
+          - exp_labels: {severity: warning, job: eplix, instance: vc2, node: bn-a}
+            exp_annotations: {summary: "Beacon node bn-a of Eplix on vc2 scores 20 of 100", runbook_url: "docs/runbook.md#eplixbeaconnodeunhealthy"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_beacon_node_submissions_total{job="eplix",instance="vc1",node="bn-a",topic="attestations",result="accepted"}', values: '0+6x30'}
+      - {series: 'eplix_beacon_node_submissions_total{job="eplix",instance="vc1",node="bn-a",topic="attestations",result="failed"}', values: '0+4x30'}
+      - {series: 'eplix_beacon_node_submissions_total{job="eplix",instance="vc1",node="bn-b",topic="attestations",result="accepted"}', values: '0+10x30'}
+      - {series: 'eplix_slashing_check_duration_seconds_bucket{job="eplix",instance="vc1",le="0.1"}', values: '0+50x30'}
+      - {series: 'eplix_slashing_check_duration_seconds_bucket{job="eplix",instance="vc1",le="1"}', values: '0+100x30'}
+      - {series: 'eplix_slashing_check_duration_seconds_bucket{job="eplix",instance="vc1",le="+Inf"}', values: '0+100x30'}
+      - {series: 'eplix_proposer_config_errors_total{job="eplix",instance="vc1"}', values: '0x5 1x20'}
+      - {series: 'eplix_threadpool_queue_length{job="eplix",instance="vc1"}', values: '500x10'}
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: EplixSubmissionsFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, node: bn-a}
+            exp_annotations: {summary: "Beacon node bn-a refused 40% of the sends of Eplix on vc1", runbook_url: "docs/runbook.md#eplixsubmissionsfailing"}
+      - eval_time: 25m
+        alertname: EplixSlashingDbSlow
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1}
+            exp_annotations: {summary: "p99 slashing DB check, append and fsync of Eplix on vc1 takes 982ms", runbook_url: "docs/runbook.md#eplixslashingdbslow"}
+      - eval_time: 10m
+        alertname: EplixProposerConfigErrors
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1}
+            exp_annotations: {summary: "The proposer config of Eplix on vc1 failed to load; the last good one stays", runbook_url: "docs/runbook.md#eplixproposerconfigerrors"}
+      - {eval_time: 3m, alertname: EplixThreadPoolQueue, exp_alerts: []}
+      - eval_time: 7m
+        alertname: EplixThreadPoolQueue
+        exp_alerts:
+          - exp_labels: {severity: warning, job: eplix, instance: vc1}
+            exp_annotations: {summary: "500 work items wait in the thread pool of Eplix on vc1", runbook_url: "docs/runbook.md#eplixthreadpoolqueue"}
+
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_monitor_attestations_total{job="eplix",instance="vc1",outcome="missed"}', values: '0x10 2x30'}
+      - {series: 'eplix_monitor_attestations_total{job="eplix",instance="vc1",outcome="included"}', values: '0+10x40'}
+      - {series: 'eplix_monitor_proposals_total{job="eplix",instance="vc1",outcome="missed"}', values: '0x10 1x30'}
+      - {series: 'eplix_monitor_inclusion_distance_slots_sum{job="eplix",instance="vc1"}', values: '0+30x120'}
+      - {series: 'eplix_monitor_inclusion_distance_slots_count{job="eplix",instance="vc1"}', values: '0+10x120'}
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EplixChainAttestationsMissed
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1}
+            exp_annotations: {summary: "2 attestations of Eplix on vc1 are not on chain", runbook_url: "docs/runbook.md#eplixchainattestationsmissed"}
+      - eval_time: 20m
+        alertname: EplixChainProposalMissed
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vc1}
+            exp_annotations: {summary: "A block proposal of Eplix on vc1 is not on chain", runbook_url: "docs/runbook.md#eplixchainproposalmissed"}
+      - {eval_time: 20m, alertname: EplixChainInclusionSlow, exp_alerts: []}
+      - eval_time: 100m
+        alertname: EplixChainInclusionSlow
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1}
+            exp_annotations: {summary: "Attestations of Eplix on vc1 take 3 slots on average to be included", runbook_url: "docs/runbook.md#eplixchaininclusionslow"}
+
+  # vc1's keymanager certificate expires in one day, vc2's in three.
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_tls_cert_not_after_seconds{job="eplix",instance="vc1",use="keymanager",name="tls_cert"}', values: '86400x30'}
+      - {series: 'eplix_tls_cert_not_after_seconds{job="eplix",instance="vc2",use="keymanager",name="tls_cert"}', values: '259200x30'}
+    alert_rule_test:
+      - {eval_time: 5m, alertname: EplixClientCertificateExpiring, exp_alerts: []}
+      - eval_time: 15m
+        alertname: EplixClientCertificateExpiring
+        exp_alerts:
+          - exp_labels: {severity: warning, job: eplix, instance: vc1, use: keymanager, name: tls_cert}
+            exp_annotations: {summary: "The keymanager TLS file tls_cert of Eplix on vc1 expires in 23h 45m 0s", runbook_url: "docs/runbook.md#eplixclientcertificateexpiring"}
+
+  # r1 refuses (image_not_allowed), r2 is ready.
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_signer_state{job="eplix",instance="vc1",signer="r1",state="image_not_allowed"}', values: '1x20'}
+      - {series: 'eplix_signer_state{job="eplix",instance="vc1",signer="r2",state="ready"}', values: '1x20'}
+    alert_rule_test:
+      - {eval_time: 3m, alertname: EplixSignerDegraded, exp_alerts: []}
+      - eval_time: 10m
+        alertname: EplixSignerDegraded
+        exp_alerts:
+          - exp_labels: {severity: warning, job: eplix, instance: vc1, signer: r1, state: image_not_allowed}
+            exp_annotations: {summary: "Signer r1 of Eplix on vc1 is image_not_allowed", runbook_url: "docs/runbook.md#eplixsignerdegraded"}
+
+  # bn-a refuses every registration; bn-b refused one epoch, then accepted again.
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_validator_registrations_total{job="eplix",instance="vc1",node="bn-a",result="failed"}', values: '0+3x40'}
+      - {series: 'eplix_validator_registrations_total{job="eplix",instance="vc1",node="bn-b",result="failed"}', values: '0x5 3x35'}
+      - {series: 'eplix_validator_registrations_total{job="eplix",instance="vc1",node="bn-b",result="accepted"}', values: '0+3x40'}
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EplixRegistrationsFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1, node: bn-a}
+            exp_annotations: {summary: "Beacon node bn-a refused the validator registrations of Eplix on vc1 and accepted none in the last epoch", runbook_url: "docs/runbook.md#eplixregistrationsfailing"}
+
+  # One blinded block that no node took.
+  - interval: 1m
+    input_series:
+      - {series: 'eplix_blinded_blocks_total{job="eplix",instance="vc1",result="refused"}', values: '0x10 1x80'}
+      - {series: 'eplix_blinded_blocks_total{job="eplix",instance="vc1",result="published"}', values: '0+1x90'}
+    alert_rule_test:
+      - {eval_time: 5m, alertname: EplixBlindedBlockRefused, exp_alerts: []}
+      - eval_time: 20m
+        alertname: EplixBlindedBlockRefused
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vc1}
+            exp_annotations: {summary: "No beacon node took 1 blinded blocks of Eplix on vc1 in the last hour", runbook_url: "docs/runbook.md#eplixblindedblockrefused"}
+      - {eval_time: 85m, alertname: EplixBlindedBlockRefused, exp_alerts: []}

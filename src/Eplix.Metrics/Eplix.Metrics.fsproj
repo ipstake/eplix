@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The metrics module: a Prometheus text endpoint (Kestrel, as the keymanager module) over the
+       core System.Diagnostics.Metrics instruments. -p:EplixMetrics=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Metrics</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Prometheus.fs" />
+    <Compile Include="Runtime.fs" />
+    <Compile Include="MetricsModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

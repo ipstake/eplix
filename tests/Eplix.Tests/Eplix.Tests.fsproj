@@ -1,0 +1,115 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsTestProject>true</IsTestProject>
+    <!-- Tests may use reflection-based printing; the AOT rules apply to src/ only. -->
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="TestUtil.fs" />
+    <Compile Include="Snappy.fs" />
+    <Compile Include="SszTests.fs" />
+    <Compile Include="SszGenericTests.fs" />
+    <Compile Include="SszReference.fs" />
+    <Compile Include="SszCrossCheckTests.fs" />
+    <Compile Include="BlsTests.fs" />
+    <Compile Include="FakeBeaconNode.fs" />
+    <Compile Include="BeaconApiTests.fs" />
+    <Compile Include="NodeTlsTests.fs" />
+    <Compile Include="ConfigSourcesTests.fs" />
+    <Compile Include="KeystoreTests.fs" />
+    <Compile Include="LayoutTests.fs" />
+    <Compile Include="ClientLayoutTests.fs" />
+    <Compile Include="SigningTests.fs" />
+    <Compile Include="NetworksTests.fs" />
+    <Compile Include="SlashingTests.fs" />
+    <Compile Include="SchedulerTests.fs" />
+    <Compile Include="ThresholdTests.fs" />
+    <Compile Include="DirkTests.fs" />
+    <Compile Include="DirkIntegrationTests.fs" />
+    <Compile Include="Web3SignerTests.fs" />
+    <Compile Include="RemoteCheckTests.fs" />
+    <Compile Include="OpenApi.fs" />
+    <Compile Include="RemoteSigningContractTests.fs" />
+    <Compile Include="RemoteKeysTests.fs" />
+    <Compile Include="Web3SignerIntegrationTests.fs" />
+    <Compile Include="TeeTests.fs" />
+    <Compile Include="TeeFrameTests.fs" />
+    <Compile Include="TeeTlsTests.fs" />
+    <Compile Include="TeeKeyReleaseTests.fs" />
+    <Compile Include="TeeHealthTests.fs" />
+    <Compile Include="ClientChainTests.fs" />
+    <Compile Include="CertReloadTests.fs" />
+    <Compile Include="W3sAttestTests.fs" />
+    <Compile Include="TeeVerifierTests.fs" />
+    <Compile Include="TeeIntegrationTests.fs" />
+    <Compile Include="RetirementTests.fs" />
+    <Compile Include="DutyTests.fs" />
+    <Compile Include="GloasTests.fs" />
+    <Compile Include="PtcTests.fs" />
+    <Compile Include="ReloadTests.fs" />
+    <Compile Include="ProposerConfigTests.fs" />
+    <Compile Include="KeymanagerTests.fs" />
+    <Compile Include="KeymanagerTlsTests.fs" />
+    <Compile Include="MetricsTests.fs" />
+    <Compile Include="RescanTests.fs" />
+    <Compile Include="TracingTests.fs" />
+    <Compile Include="DoppelgangerTests.fs" />
+    <Compile Include="SlashedOnChainTests.fs" />
+    <Compile Include="ObolTests.fs" />
+    <Compile Include="MonitorTests.fs" />
+    <Compile Include="GraffitiTests.fs" />
+    <Compile Include="SigningJitterTests.fs" />
+    <Compile Include="HaPeerTests.fs" />
+    <Compile Include="FuzzTests.fs" />
+    <Compile Include="RunnerTests.fs" />
+    <Compile Include="DomainTypeTests.fs" />
+    <Compile Include="ChainAnchorTests.fs" />
+    <Compile Include="NodeLossTests.fs" />
+    <Compile Include="VcHarness.fs" />
+    <Compile Include="DoppelgangerFindingsTests.fs" />
+    <Compile Include="KeyActivationTests.fs" />
+    <Compile Include="FloorTests.fs" />
+    <Compile Include="ForkBoundaryTests.fs" />
+    <Compile Include="DutyGapTests.fs" />
+    <Compile Include="BuilderLegacyTests.fs" />
+    <Compile Include="SwitchesTests.fs" />
+    <Compile Include="ExitTests.fs" />
+    <Compile Include="NodeRoleTests.fs" />
+    <Compile Include="KeymanagerGapTests.fs" />
+    <Compile Include="RemoteSigningExamplesTests.fs" />
+    <Compile Include="ApiSchemaTests.fs" />
+    <Compile Include="SpecSignatureTests.fs" />
+    <Compile Include="CharonIntegrationTests.fs" />
+    <Compile Include="InterchangeStreamTests.fs" />
+    <Compile Include="SlashingMergeTests.fs" />
+    <Compile Include="PubKeyHashTests.fs" />
+    <Compile Include="Main.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Eplix.Core/Eplix.Core.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Backend.Local/Eplix.Backend.Local.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Keymanager/Eplix.Keymanager.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Backend.Dirk/Eplix.Backend.Dirk.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Backend.Web3Signer/Eplix.Backend.Web3Signer.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Backend.Tee/Eplix.Backend.Tee.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Gloas/Eplix.Gloas.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Builder/Eplix.Builder.fsproj" />
+    <ProjectReference Include="../../src/Eplix.BuilderLegacy/Eplix.BuilderLegacy.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Metrics/Eplix.Metrics.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Doppelganger/Eplix.Doppelganger.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Obol/Eplix.Obol.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Monitor/Eplix.Monitor.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Graffiti/Eplix.Graffiti.fsproj" />
+    <ProjectReference Include="../../src/Eplix.Tracing/Eplix.Tracing.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="FsCheck" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
+</Project>

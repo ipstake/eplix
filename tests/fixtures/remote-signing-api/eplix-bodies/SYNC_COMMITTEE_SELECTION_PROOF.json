@@ -1,0 +1,16 @@
+{
+  "type": "SYNC_COMMITTEE_SELECTION_PROOF",
+  "fork_info": {
+    "fork": {
+      "previous_version": "0x05000001",
+      "current_version": "0x06000001",
+      "epoch": "1"
+    },
+    "genesis_validators_root": "0xa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+  },
+  "signingRoot": "0x2bba57006ca7252d9f81e4d656f2197aa1b8c88f6149c796c314f95fb8c77178",
+  "sync_aggregator_selection_data": {
+    "slot": "41",
+    "subcommittee_index": "1"
+  }
+}

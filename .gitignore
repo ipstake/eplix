@@ -1,0 +1,7 @@
+bin/
+obj/
+artifacts/
+*.swp
+/tests/vectors/.download/
+TestResults/
+BenchmarkDotNet.Artifacts/

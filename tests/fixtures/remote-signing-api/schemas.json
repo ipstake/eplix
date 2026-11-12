@@ -1,0 +1,2057 @@
+{
+ "components": {
+  "request": {
+   "discriminator": {
+    "mapping": {
+     "AGGREGATE_AND_PROOF": "#/components/schemas/AggregateAndProofSigning",
+     "AGGREGATE_AND_PROOF_V2": "#/components/schemas/AggregateAndProofSigningV2",
+     "AGGREGATION_SLOT": "#/components/schemas/AggregationSlotSigning",
+     "ATTESTATION": "#/components/schemas/AttestationSigning",
+     "BLOCK": "#/components/schemas/BlockSigning",
+     "BLOCK_V2": "#/components/schemas/BeaconBlockSigning",
+     "BUILDER_REQUEST_AUTH": "#/components/schemas/BuilderRequestAuthSigning",
+     "DEPOSIT": "#/components/schemas/DepositSigning",
+     "EXECUTION_PAYLOAD_BID": "#/components/schemas/ExecutionPayloadBidSigning",
+     "EXECUTION_PAYLOAD_ENVELOPE": "#/components/schemas/ExecutionPayloadEnvelopeSigning",
+     "PAYLOAD_ATTESTATION_MESSAGE": "#/components/schemas/PayloadAttestationMessageSigning",
+     "PROPOSER_PREFERENCES": "#/components/schemas/ProposerPreferencesSigning",
+     "RANDAO_REVEAL": "#/components/schemas/RandaoRevealSigning",
+     "SYNC_COMMITTEE_CONTRIBUTION_AND_PROOF": "#/components/schemas/SyncCommitteeContributionAndProofSigning",
+     "SYNC_COMMITTEE_MESSAGE": "#/components/schemas/SyncCommitteeMessageSigning",
+     "SYNC_COMMITTEE_SELECTION_PROOF": "#/components/schemas/SyncCommitteeSelectionProofSigning",
+     "VALIDATOR_REGISTRATION": "#/components/schemas/ValidatorRegistrationSigning",
+     "VOLUNTARY_EXIT": "#/components/schemas/VoluntaryExitSigning"
+    },
+    "propertyName": "type"
+   },
+   "oneOf": [
+    {
+     "$ref": "#/components/schemas/AggregationSlotSigning"
+    },
+    {
+     "$ref": "#/components/schemas/AggregateAndProofSigning"
+    },
+    {
+     "$ref": "#/components/schemas/AggregateAndProofSigningV2"
+    },
+    {
+     "$ref": "#/components/schemas/AttestationSigning"
+    },
+    {
+     "$ref": "#/components/schemas/BlockSigning"
+    },
+    {
+     "$ref": "#/components/schemas/BeaconBlockSigning"
+    },
+    {
+     "$ref": "#/components/schemas/DepositSigning"
+    },
+    {
+     "$ref": "#/components/schemas/RandaoRevealSigning"
+    },
+    {
+     "$ref": "#/components/schemas/VoluntaryExitSigning"
+    },
+    {
+     "$ref": "#/components/schemas/SyncCommitteeMessageSigning"
+    },
+    {
+     "$ref": "#/components/schemas/SyncCommitteeSelectionProofSigning"
+    },
+    {
+     "$ref": "#/components/schemas/SyncCommitteeContributionAndProofSigning"
+    },
+    {
+     "$ref": "#/components/schemas/ValidatorRegistrationSigning"
+    },
+    {
+     "$ref": "#/components/schemas/ExecutionPayloadBidSigning"
+    },
+    {
+     "$ref": "#/components/schemas/ExecutionPayloadEnvelopeSigning"
+    },
+    {
+     "$ref": "#/components/schemas/PayloadAttestationMessageSigning"
+    },
+    {
+     "$ref": "#/components/schemas/ProposerPreferencesSigning"
+    },
+    {
+     "$ref": "#/components/schemas/BuilderRequestAuthSigning"
+    }
+   ]
+  },
+  "schemas": {
+   "AggregateAndProofElectra": {
+    "properties": {
+     "aggregate": {
+      "$ref": "#/components/schemas/AttestationElectra"
+     },
+     "aggregator_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "selection_proof": {
+      "description": "Bytes96 hexadecimal",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "AggregateAndProofPhase0": {
+    "properties": {
+     "aggregate": {
+      "$ref": "#/components/schemas/AttestationPhase0"
+     },
+     "aggregator_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "selection_proof": {
+      "description": "Bytes96 hexadecimal",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "AggregateAndProofRequest": {
+    "properties": {
+     "aggregate_and_proof": {
+      "discriminator": {
+       "mapping": {
+        "ALTAIR": "#/components/schemas/AggregateAndProofRequestAltair",
+        "BELLATRIX": "#/components/schemas/AggregateAndProofRequestBellatrix",
+        "CAPELLA": "#/components/schemas/AggregateAndProofRequestCapella",
+        "DENEB": "#/components/schemas/AggregateAndProofRequestDeneb",
+        "ELECTRA": "#/components/schemas/AggregateAndProofRequestElectra",
+        "FULU": "#/components/schemas/AggregateAndProofRequestFulu",
+        "GLOAS": "#/components/schemas/AggregateAndProofRequestGloas",
+        "PHASE0": "#/components/schemas/AggregateAndProofRequestPhase0"
+       },
+       "propertyName": "version"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestPhase0"
+       },
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestAltair"
+       },
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestBellatrix"
+       },
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestCapella"
+       },
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestDeneb"
+       },
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestElectra"
+       },
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestFulu"
+       },
+       {
+        "$ref": "#/components/schemas/AggregateAndProofRequestGloas"
+       }
+      ]
+     }
+    },
+    "required": [
+     "aggregate_and_proof"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestAltair": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofPhase0"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "ALTAIR"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestBellatrix": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofPhase0"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "BELLATRIX"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestCapella": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofPhase0"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "CAPELLA"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestDeneb": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofPhase0"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "DENEB"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestElectra": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofElectra"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "ELECTRA"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestFulu": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofElectra"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "FULU"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestGloas": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofElectra"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "GLOAS"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofRequestPhase0": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/AggregateAndProofPhase0"
+     },
+     "version": {
+      "description": "version to identify AggregateAndProof request type.",
+      "enum": [
+       "PHASE0"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "AggregateAndProofSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "aggregate_and_proof": {
+        "$ref": "#/components/schemas/AggregateAndProofPhase0"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "AGGREGATE_AND_PROOF"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "aggregate_and_proof"
+      ],
+      "type": "object"
+     }
+    ],
+    "description": "** DEPRECATED ** See AggregateAndProofSigningV2."
+   },
+   "AggregateAndProofSigningV2": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "$ref": "#/components/schemas/AggregateAndProofRequest"
+     },
+     {
+      "properties": {
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "AGGREGATE_AND_PROOF_V2"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "AggregationSlotSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "aggregation_slot": {
+        "properties": {
+         "slot": {
+          "format": "uint64",
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "AGGREGATION_SLOT"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "aggregation_slot"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "AttestationData": {
+    "properties": {
+     "beacon_block_root": {
+      "type": "string"
+     },
+     "index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "source": {
+      "$ref": "#/components/schemas/Checkpoint"
+     },
+     "target": {
+      "$ref": "#/components/schemas/Checkpoint"
+     }
+    },
+    "type": "object"
+   },
+   "AttestationElectra": {
+    "properties": {
+     "aggregation_bits": {
+      "type": "string"
+     },
+     "committee_bits": {
+      "type": "string"
+     },
+     "data": {
+      "$ref": "#/components/schemas/AttestationData"
+     },
+     "signature": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "AttestationPhase0": {
+    "properties": {
+     "aggregation_bits": {
+      "type": "string"
+     },
+     "data": {
+      "$ref": "#/components/schemas/AttestationData"
+     },
+     "signature": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "AttestationSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "attestation": {
+        "$ref": "#/components/schemas/AttestationData"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "ATTESTATION"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "attestation"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "AttesterSlashing": {
+    "properties": {
+     "attestation_1": {
+      "$ref": "#/components/schemas/IndexedAttestation"
+     },
+     "attestation_2": {
+      "$ref": "#/components/schemas/IndexedAttestation"
+     }
+    },
+    "type": "object"
+   },
+   "BeaconBlock": {
+    "properties": {
+     "body": {
+      "$ref": "#/components/schemas/BeaconBlockBody"
+     },
+     "parent_root": {
+      "type": "string"
+     },
+     "proposer_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "state_root": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "BeaconBlockAltair": {
+    "properties": {
+     "body": {
+      "$ref": "#/components/schemas/BeaconBlockBodyAltair"
+     },
+     "parent_root": {
+      "type": "string"
+     },
+     "proposer_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "state_root": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "BeaconBlockBody": {
+    "properties": {
+     "attestations": {
+      "items": {
+       "$ref": "#/components/schemas/AttestationPhase0"
+      },
+      "type": "array"
+     },
+     "attester_slashings": {
+      "items": {
+       "$ref": "#/components/schemas/AttesterSlashing"
+      },
+      "type": "array"
+     },
+     "deposits": {
+      "items": {
+       "$ref": "#/components/schemas/Deposit"
+      },
+      "type": "array"
+     },
+     "eth1_data": {
+      "$ref": "#/components/schemas/Eth1Data"
+     },
+     "graffiti": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "proposer_slashings": {
+      "items": {
+       "$ref": "#/components/schemas/ProposerSlashing"
+      },
+      "type": "array"
+     },
+     "randao_reveal": {
+      "type": "string"
+     },
+     "voluntary_exits": {
+      "items": {
+       "$ref": "#/components/schemas/SignedVoluntaryExit"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "BeaconBlockBodyAltair": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/BeaconBlockBody"
+     },
+     {
+      "properties": {
+       "sync_aggregate": {
+        "$ref": "#/components/schemas/SyncAggregate"
+       }
+      },
+      "type": "object"
+     }
+    ]
+   },
+   "BeaconBlockHeader": {
+    "properties": {
+     "body_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "parent_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "proposer_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "state_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "BeaconBlockRequest": {
+    "properties": {
+     "beacon_block": {
+      "discriminator": {
+       "mapping": {
+        "ALTAIR": "#/components/schemas/BlockRequestAltair",
+        "BELLATRIX": "#/components/schemas/BlockRequestBellatrix",
+        "CAPELLA": "#/components/schemas/BlockRequestCapella",
+        "DENEB": "#/components/schemas/BlockRequestDeneb",
+        "ELECTRA": "#/components/schemas/BlockRequestElectra",
+        "FULU": "#/components/schemas/BlockRequestFulu",
+        "GLOAS": "#/components/schemas/BlockRequestGloas",
+        "PHASE0": "#/components/schemas/BlockRequestPhase0"
+       },
+       "propertyName": "version"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/BlockRequestPhase0"
+       },
+       {
+        "$ref": "#/components/schemas/BlockRequestAltair"
+       },
+       {
+        "$ref": "#/components/schemas/BlockRequestBellatrix"
+       },
+       {
+        "$ref": "#/components/schemas/BlockRequestCapella"
+       },
+       {
+        "$ref": "#/components/schemas/BlockRequestDeneb"
+       },
+       {
+        "$ref": "#/components/schemas/BlockRequestElectra"
+       },
+       {
+        "$ref": "#/components/schemas/BlockRequestFulu"
+       },
+       {
+        "$ref": "#/components/schemas/BlockRequestGloas"
+       }
+      ]
+     }
+    },
+    "required": [
+     "beacon_block"
+    ],
+    "type": "object"
+   },
+   "BeaconBlockSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "$ref": "#/components/schemas/BeaconBlockRequest"
+     },
+     {
+      "properties": {
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "BLOCK_V2"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "BlockRequestAltair": {
+    "properties": {
+     "block": {
+      "$ref": "#/components/schemas/BeaconBlockAltair"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "ALTAIR"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block"
+    ],
+    "type": "object"
+   },
+   "BlockRequestBellatrix": {
+    "properties": {
+     "block_header": {
+      "$ref": "#/components/schemas/BeaconBlockHeader"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "BELLATRIX"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block_header"
+    ],
+    "type": "object"
+   },
+   "BlockRequestCapella": {
+    "properties": {
+     "block_header": {
+      "$ref": "#/components/schemas/BeaconBlockHeader"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "CAPELLA"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block_header"
+    ],
+    "type": "object"
+   },
+   "BlockRequestDeneb": {
+    "properties": {
+     "block_header": {
+      "$ref": "#/components/schemas/BeaconBlockHeader"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "DENEB"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block_header"
+    ],
+    "type": "object"
+   },
+   "BlockRequestElectra": {
+    "properties": {
+     "block_header": {
+      "$ref": "#/components/schemas/BeaconBlockHeader"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "ELECTRA"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block_header"
+    ],
+    "type": "object"
+   },
+   "BlockRequestFulu": {
+    "properties": {
+     "block_header": {
+      "$ref": "#/components/schemas/BeaconBlockHeader"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "FULU"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block_header"
+    ],
+    "type": "object"
+   },
+   "BlockRequestGloas": {
+    "properties": {
+     "block_header": {
+      "$ref": "#/components/schemas/BeaconBlockHeader"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "GLOAS"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block_header"
+    ],
+    "type": "object"
+   },
+   "BlockRequestPhase0": {
+    "properties": {
+     "block": {
+      "$ref": "#/components/schemas/BeaconBlock"
+     },
+     "version": {
+      "description": "version to identify block request type.",
+      "enum": [
+       "PHASE0"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "block"
+    ],
+    "type": "object"
+   },
+   "BlockSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "block": {
+        "$ref": "#/components/schemas/BeaconBlock"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "BLOCK"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "block"
+      ],
+      "type": "object"
+     }
+    ],
+    "description": "** DEPRECATED ** See BeaconBlockSigning."
+   },
+   "BuilderRequestAuthGloas": {
+    "description": "Proposer-signed, out-of-protocol builder-API authentication message (builder-specs, Gloas), used to authenticate per-request builder-API calls (e.g. getExecutionPayloadBid, submitBuilderPreferences). Signed with DOMAIN_BUILDER_REQUEST_AUTH (0x0B000001) computed from the genesis fork version and a zero genesis_validators_root (no fork_info required), not the proposer's current fork.",
+    "properties": {
+     "data": {
+      "description": "SSZ hexadecimal (max 4096 bytes, non-empty). Opaque authentication data agreed with the builder out of band.",
+      "type": "string"
+     },
+     "slot": {
+      "description": "The proposal slot this request is authorized for.",
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "BuilderRequestAuthRequest": {
+    "properties": {
+     "builder_request_auth": {
+      "discriminator": {
+       "mapping": {
+        "GLOAS": "#/components/schemas/BuilderRequestAuthRequestGloas"
+       },
+       "propertyName": "version"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/BuilderRequestAuthRequestGloas"
+       }
+      ]
+     }
+    },
+    "required": [
+     "builder_request_auth"
+    ],
+    "type": "object"
+   },
+   "BuilderRequestAuthRequestGloas": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/BuilderRequestAuthGloas"
+     },
+     "version": {
+      "description": "version to identify BuilderRequestAuth request type.",
+      "enum": [
+       "GLOAS"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "BuilderRequestAuthSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/BuilderRequestAuthRequest"
+     },
+     {
+      "properties": {
+       "signingRoot": {
+        "description": "signing root for optional verification if field present",
+        "type": "string"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "BUILDER_REQUEST_AUTH"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "Checkpoint": {
+    "properties": {
+     "epoch": {
+      "type": "string"
+     },
+     "root": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ContributionAndProof": {
+    "properties": {
+     "aggregator_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "contribution": {
+      "$ref": "#/components/schemas/SyncCommitteeContribution"
+     },
+     "selection_proof": {
+      "description": "Bytes96 hexadecimal",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Deposit": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/DepositData"
+     },
+     "proof": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "DepositData": {
+    "properties": {
+     "amount": {
+      "type": "string"
+     },
+     "pubkey": {
+      "type": "string"
+     },
+     "signature": {
+      "type": "string"
+     },
+     "withdrawal_credentials": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DepositSigning": {
+    "properties": {
+     "deposit": {
+      "properties": {
+       "amount": {
+        "type": "string"
+       },
+       "genesis_fork_version": {
+        "description": "Bytes4 hexadecimal",
+        "type": "string"
+       },
+       "pubkey": {
+        "type": "string"
+       },
+       "withdrawal_credentials": {
+        "type": "string"
+       }
+      },
+      "type": "object"
+     },
+     "signingRoot": {
+      "description": "signing root for optional verification if field present",
+      "type": "string"
+     },
+     "type": {
+      "description": "Signing Request type",
+      "enum": [
+       "DEPOSIT"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "type",
+     "deposit"
+    ],
+    "type": "object"
+   },
+   "Eth1Data": {
+    "properties": {
+     "block_hash": {
+      "type": "string"
+     },
+     "deposit_count": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "deposit_root": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ExecutionPayloadBidGloas": {
+    "description": "SSZ container signed by a builder using DOMAIN_BEACON_BUILDER (0x0B000000) in Gloas for proposing an execution payload bid.",
+    "properties": {
+     "blob_kzg_commitments": {
+      "items": {
+       "description": "Bytes48 hexadecimal",
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "block_hash": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "builder_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "execution_payment": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "execution_requests_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "fee_recipient": {
+      "description": "Bytes20 hexadecimal",
+      "type": "string"
+     },
+     "gas_limit": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "parent_block_hash": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "parent_block_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "prev_randao": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "value": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ExecutionPayloadBidRequest": {
+    "properties": {
+     "execution_payload_bid": {
+      "discriminator": {
+       "mapping": {
+        "GLOAS": "#/components/schemas/ExecutionPayloadBidRequestGloas"
+       },
+       "propertyName": "version"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/ExecutionPayloadBidRequestGloas"
+       }
+      ]
+     }
+    },
+    "required": [
+     "execution_payload_bid"
+    ],
+    "type": "object"
+   },
+   "ExecutionPayloadBidRequestGloas": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/ExecutionPayloadBidGloas"
+     },
+     "version": {
+      "description": "version to identify ExecutionPayloadBid request type.",
+      "enum": [
+       "GLOAS"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "ExecutionPayloadBidSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "$ref": "#/components/schemas/ExecutionPayloadBidRequest"
+     },
+     {
+      "properties": {
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "EXECUTION_PAYLOAD_BID"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "ExecutionPayloadEnvelopeGloas": {
+    "description": "SSZ container signed by a builder, or by a proposer for self-builds, using DOMAIN_BEACON_BUILDER (0x0B000000) in Gloas when revealing the actual execution payload.",
+    "properties": {
+     "beacon_block_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "builder_index": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "execution_requests": {
+      "$ref": "#/components/schemas/ExecutionRequestsGloas"
+     },
+     "parent_beacon_block_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "payload": {
+      "$ref": "#/components/schemas/ExecutionPayloadGloas"
+     }
+    },
+    "type": "object"
+   },
+   "ExecutionPayloadEnvelopeRequest": {
+    "properties": {
+     "execution_payload_envelope": {
+      "discriminator": {
+       "mapping": {
+        "GLOAS": "#/components/schemas/ExecutionPayloadEnvelopeRequestGloas"
+       },
+       "propertyName": "version"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/ExecutionPayloadEnvelopeRequestGloas"
+       }
+      ]
+     }
+    },
+    "required": [
+     "execution_payload_envelope"
+    ],
+    "type": "object"
+   },
+   "ExecutionPayloadEnvelopeRequestGloas": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/ExecutionPayloadEnvelopeGloas"
+     },
+     "version": {
+      "description": "version to identify ExecutionPayloadEnvelope request type.",
+      "enum": [
+       "GLOAS"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "ExecutionPayloadEnvelopeSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "$ref": "#/components/schemas/ExecutionPayloadEnvelopeRequest"
+     },
+     {
+      "properties": {
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "EXECUTION_PAYLOAD_ENVELOPE"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "ExecutionPayloadGloas": {
+    "description": "Gloas execution payload. Extends the Deneb execution payload with block_access_list and slot_number fields.",
+    "properties": {
+     "base_fee_per_gas": {
+      "description": "UInt256 decimal",
+      "type": "string"
+     },
+     "blob_gas_used": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "block_access_list": {
+      "description": "SSZ hexadecimal",
+      "type": "string"
+     },
+     "block_hash": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "block_number": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "excess_blob_gas": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "extra_data": {
+      "description": "SSZ hexadecimal",
+      "type": "string"
+     },
+     "fee_recipient": {
+      "description": "Bytes20 hexadecimal",
+      "type": "string"
+     },
+     "gas_limit": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "gas_used": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "logs_bloom": {
+      "description": "Bytes256 hexadecimal",
+      "type": "string"
+     },
+     "parent_hash": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "prev_randao": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "receipts_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "slot_number": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "state_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "timestamp": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "transactions": {
+      "items": {
+       "description": "SSZ hexadecimal",
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "withdrawals": {
+      "description": "List of validator withdrawals (Capella+).",
+      "items": {
+       "properties": {
+        "address": {
+         "description": "Bytes20 hexadecimal",
+         "type": "string"
+        },
+        "amount": {
+         "format": "uint64",
+         "type": "string"
+        },
+        "index": {
+         "format": "uint64",
+         "type": "string"
+        },
+        "validator_index": {
+         "format": "uint64",
+         "type": "string"
+        }
+       },
+       "type": "object"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "ExecutionRequestsGloas": {
+    "description": "Gloas execution requests. Extends the Electra execution requests (deposits, withdrawals, consolidations) with builder_deposits and builder_exits.",
+    "properties": {
+     "builder_deposits": {
+      "items": {
+       "properties": {
+        "amount": {
+         "format": "uint64",
+         "type": "string"
+        },
+        "pubkey": {
+         "description": "Bytes48 hexadecimal",
+         "type": "string"
+        },
+        "signature": {
+         "description": "Bytes96 hexadecimal",
+         "type": "string"
+        },
+        "withdrawal_credentials": {
+         "description": "Bytes32 hexadecimal",
+         "type": "string"
+        }
+       },
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "builder_exits": {
+      "items": {
+       "properties": {
+        "pubkey": {
+         "description": "Bytes48 hexadecimal",
+         "type": "string"
+        },
+        "source_address": {
+         "description": "Bytes20 hexadecimal",
+         "type": "string"
+        }
+       },
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "consolidations": {
+      "items": {
+       "properties": {
+        "source_address": {
+         "description": "Bytes20 hexadecimal",
+         "type": "string"
+        },
+        "source_pubkey": {
+         "description": "Bytes48 hexadecimal",
+         "type": "string"
+        },
+        "target_pubkey": {
+         "description": "Bytes48 hexadecimal",
+         "type": "string"
+        }
+       },
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "deposits": {
+      "items": {
+       "properties": {
+        "amount": {
+         "format": "uint64",
+         "type": "string"
+        },
+        "index": {
+         "format": "uint64",
+         "type": "string"
+        },
+        "pubkey": {
+         "description": "Bytes48 hexadecimal",
+         "type": "string"
+        },
+        "signature": {
+         "description": "Bytes96 hexadecimal",
+         "type": "string"
+        },
+        "withdrawal_credentials": {
+         "description": "Bytes32 hexadecimal",
+         "type": "string"
+        }
+       },
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "withdrawals": {
+      "items": {
+       "properties": {
+        "amount": {
+         "format": "uint64",
+         "type": "string"
+        },
+        "source_address": {
+         "description": "Bytes20 hexadecimal",
+         "type": "string"
+        },
+        "validator_pubkey": {
+         "description": "Bytes48 hexadecimal",
+         "type": "string"
+        }
+       },
+       "type": "object"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "Fork": {
+    "properties": {
+     "current_version": {
+      "description": "Current version of fork",
+      "example": "0x00000001",
+      "pattern": "^0x[a-fA-F0-9]{8}$",
+      "type": "string"
+     },
+     "epoch": {
+      "description": "Epoch value in String format",
+      "example": "1",
+      "format": "uint64",
+      "type": "string"
+     },
+     "previous_version": {
+      "description": "Previous version of fork",
+      "example": "0x00000001",
+      "pattern": "^0x[a-fA-F0-9]{8}$",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "IndexedAttestation": {
+    "properties": {
+     "attesting_indices": {
+      "items": {
+       "format": "uint64",
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "data": {
+      "$ref": "#/components/schemas/AttestationData"
+     },
+     "signature": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "PayloadAttestationDataGloas": {
+    "description": "The data component of a PayloadAttestationMessage, signed by a PTC validator using DOMAIN_PTC_ATTESTER (0x0C000000).",
+    "properties": {
+     "beacon_block_root": {
+      "description": "Bytes32 hexadecimal",
+      "example": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+      "type": "string"
+     },
+     "blob_data_available": {
+      "description": "Whether blob data is available for this slot",
+      "type": "boolean"
+     },
+     "payload_present": {
+      "description": "Whether the execution payload for this slot is present",
+      "type": "boolean"
+     },
+     "slot": {
+      "example": "1",
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "PayloadAttestationMessageRequest": {
+    "properties": {
+     "payload_attestation_message": {
+      "discriminator": {
+       "mapping": {
+        "GLOAS": "#/components/schemas/PayloadAttestationMessageRequestGloas"
+       },
+       "propertyName": "version"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/PayloadAttestationMessageRequestGloas"
+       }
+      ]
+     }
+    },
+    "required": [
+     "payload_attestation_message"
+    ],
+    "type": "object"
+   },
+   "PayloadAttestationMessageRequestGloas": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/PayloadAttestationDataGloas"
+     },
+     "version": {
+      "description": "version to identify PayloadAttestationMessage request type.",
+      "enum": [
+       "GLOAS"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "PayloadAttestationMessageSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "$ref": "#/components/schemas/PayloadAttestationMessageRequest"
+     },
+     {
+      "properties": {
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "PAYLOAD_ATTESTATION_MESSAGE"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "ProposerPreferencesGloas": {
+    "description": "Container signed by a proposer using DOMAIN_PROPOSER_PREFERENCES (0x0D000000) to advertise their preferences (fee_recipient, target_gas_limit) for an upcoming proposal slot.",
+    "properties": {
+     "dependent_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "fee_recipient": {
+      "description": "Bytes20 hexadecimal",
+      "type": "string"
+     },
+     "proposal_slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "target_gas_limit": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "validator_index": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ProposerPreferencesRequest": {
+    "properties": {
+     "proposer_preferences": {
+      "discriminator": {
+       "mapping": {
+        "GLOAS": "#/components/schemas/ProposerPreferencesRequestGloas"
+       },
+       "propertyName": "version"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/ProposerPreferencesRequestGloas"
+       }
+      ]
+     }
+    },
+    "required": [
+     "proposer_preferences"
+    ],
+    "type": "object"
+   },
+   "ProposerPreferencesRequestGloas": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/ProposerPreferencesGloas"
+     },
+     "version": {
+      "description": "version to identify ProposerPreferences request type.",
+      "enum": [
+       "GLOAS"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "version",
+     "data"
+    ],
+    "type": "object"
+   },
+   "ProposerPreferencesSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "$ref": "#/components/schemas/ProposerPreferencesRequest"
+     },
+     {
+      "properties": {
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "PROPOSER_PREFERENCES"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "ProposerSlashing": {
+    "properties": {
+     "signed_header_1": {
+      "$ref": "#/components/schemas/SignedBeaconBlockHeader"
+     },
+     "signed_header_2": {
+      "$ref": "#/components/schemas/SignedBeaconBlockHeader"
+     }
+    },
+    "type": "object"
+   },
+   "RandaoReveal": {
+    "properties": {
+     "epoch": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "RandaoRevealSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "randao_reveal": {
+        "$ref": "#/components/schemas/RandaoReveal"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "RANDAO_REVEAL"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "randao_reveal"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "SignedBeaconBlockHeader": {
+    "properties": {
+     "message": {
+      "$ref": "#/components/schemas/BeaconBlockHeader"
+     },
+     "signature": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "SignedVoluntaryExit": {
+    "properties": {
+     "message": {
+      "$ref": "#/components/schemas/VoluntaryExit"
+     },
+     "signature": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Signing": {
+    "properties": {
+     "fork_info": {
+      "properties": {
+       "fork": {
+        "$ref": "#/components/schemas/Fork",
+        "description": "Fork information"
+       },
+       "genesis_validators_root": {
+        "description": "Genesis Validators Root in hex string format.",
+        "example": "0x04700007fabc8282644aed6d1c7c9e21d38a03a0c4ba193f3afe428824b3a673",
+        "type": "string"
+       }
+      },
+      "required": [
+       "fork",
+       "genesis_validators_root"
+      ],
+      "type": "object"
+     },
+     "signingRoot": {
+      "description": "signing root for optional verification if field present",
+      "example": "0xaa2e0c465c1a45d7b6637fcce4ad6ceb71fc12064b548078d619a411f0de8adc",
+      "type": "string"
+     }
+    },
+    "required": [
+     "fork_info"
+    ],
+    "type": "object"
+   },
+   "SigningResponse": {
+    "properties": {
+     "signature": {
+      "description": "Hex encoded string of signature",
+      "example": "0xb3baa751d0a9132cfe93e4e3d5ff9075111100e3789dca219ade5a24d27e19d16b3353149da1833e9b691bb38634e8dc04469be7032132906c927d7e1a49b414730612877bc6b2810c8f202daf793d1ab0d6b5cb21d52f9e52e883859887a5d9",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "SyncAggregate": {
+    "properties": {
+     "sync_committee_bits": {
+      "description": "SSZ hexadecimal",
+      "type": "string"
+     },
+     "sync_committee_signature": {
+      "description": "Bytes96 hexadecimal",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "SyncAggregatorSelectionData": {
+    "properties": {
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "subcommittee_index": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "SyncCommitteeContribution": {
+    "properties": {
+     "aggregation_bits": {
+      "description": "SSZ hexadecimal",
+      "type": "string"
+     },
+     "beacon_block_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "signature": {
+      "description": "Bytes96 hexadecimal",
+      "type": "string"
+     },
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "subcommittee_index": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "SyncCommitteeContributionAndProofSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "contribution_and_proof": {
+        "$ref": "#/components/schemas/ContributionAndProof"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "SYNC_COMMITTEE_CONTRIBUTION_AND_PROOF"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "contribution_and_proof"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "SyncCommitteeMessage": {
+    "properties": {
+     "beacon_block_root": {
+      "description": "Bytes32 hexadecimal",
+      "type": "string"
+     },
+     "slot": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "SyncCommitteeMessageSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "sync_committee_message": {
+        "$ref": "#/components/schemas/SyncCommitteeMessage"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "SYNC_COMMITTEE_MESSAGE"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "sync_committee_message"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "SyncCommitteeSelectionProofSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "sync_aggregator_selection_data": {
+        "$ref": "#/components/schemas/SyncAggregatorSelectionData"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "SYNC_COMMITTEE_SELECTION_PROOF"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type",
+       "sync_aggregator_selection_data"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "ValidatorRegistration": {
+    "properties": {
+     "fee_recipient": {
+      "description": "Bytes20 hexadecimal",
+      "type": "string"
+     },
+     "gas_limit": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "pubkey": {
+      "type": "string"
+     },
+     "timestamp": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ValidatorRegistrationSigning": {
+    "allOf": [
+     {
+      "properties": {
+       "signingRoot": {
+        "description": "signing root for optional verification if field present",
+        "type": "string"
+       },
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "VALIDATOR_REGISTRATION"
+        ],
+        "type": "string"
+       },
+       "validator_registration": {
+        "$ref": "#/components/schemas/ValidatorRegistration"
+       }
+      },
+      "required": [
+       "type",
+       "validator_registration"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "VoluntaryExit": {
+    "properties": {
+     "epoch": {
+      "format": "uint64",
+      "type": "string"
+     },
+     "validator_index": {
+      "format": "uint64",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "VoluntaryExitSigning": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/Signing"
+     },
+     {
+      "properties": {
+       "type": {
+        "description": "Signing Request type",
+        "enum": [
+         "VOLUNTARY_EXIT"
+        ],
+        "type": "string"
+       },
+       "voluntary_exit": {
+        "$ref": "#/components/schemas/VoluntaryExit"
+       }
+      },
+      "required": [
+       "type",
+       "voluntary_exit"
+      ],
+      "type": "object"
+     }
+    ]
+   }
+  }
+ }
+}

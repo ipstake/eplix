@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Eplix.Backend.Local</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Scrypt.fs" />
+    <Compile Include="Keystore.fs" />
+    <Compile Include="Layouts.fs" />
+    <Compile Include="LocalBackend.fs" />
+    <Compile Include="LocalModule.fs" />
+    <Compile Include="ImportKeys.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

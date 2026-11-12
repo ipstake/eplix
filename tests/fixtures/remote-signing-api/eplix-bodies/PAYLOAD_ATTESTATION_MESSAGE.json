@@ -1,0 +1,21 @@
+{
+  "type": "PAYLOAD_ATTESTATION_MESSAGE",
+  "fork_info": {
+    "fork": {
+      "previous_version": "0x06000001",
+      "current_version": "0x07000001",
+      "epoch": "10"
+    },
+    "genesis_validators_root": "0xa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+  },
+  "signingRoot": "0x02e7a615d948567d5349e7cede1af50ecafec9b92c15603ccd1e80805016400c",
+  "payload_attestation_message": {
+    "version": "GLOAS",
+    "data": {
+      "beacon_block_root": "0x070000000000000000000000000000000000000000000000000000000000005a",
+      "slot": "81",
+      "payload_present": true,
+      "blob_data_available": false
+    }
+  }
+}

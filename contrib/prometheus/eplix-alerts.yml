@@ -1,0 +1,267 @@
+# Prometheus alert rules for Eplix. Load with `rule_files:` in prometheus.yml and scrape the VC's
+# metrics module (modules.metrics) under job "eplix". Every alert has a section in
+# docs/runbook.md, named after the alert. Windows are in epochs of mainnet (6.4 minutes): 15m
+# holds two epochs, so one attestation per key.
+# Tests: contrib/prometheus/eplix-alerts.test.yml (promtool test rules), checked for structure by
+# scripts/check-ops.py.
+groups:
+  - name: eplix-vc
+    rules:
+      - alert: EplixDown
+        expr: up{job="eplix"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} does not answer scrapes"
+          runbook_url: "docs/runbook.md#eplixdown"
+      # Misses with reason="paused" come from an operator switch (stop_signing, paused_duties):
+      # expected while it is held, so they fire no alert. Misses with reason="lost_to_peer" are
+      # duties the HA peer signed (modules.tee.ha_peer): the pair did them, so they fire no alert
+      # either. Both keep EplixNoDutiesCompleted quiet only when they reach one per active key in
+      # 15m. Each key has two or three attestations there, so a full pause, or a VC that loses
+      # every duty to its peer, always reaches it, and a pause of a few keys does not hide a stall
+      # of the others; a pause of about 40% of the keys or more reaches it too.
+      - alert: EplixNoDutiesCompleted
+        expr: |
+          sum by (instance) (eplix_keys{job="eplix",state="active"}) > 0
+          unless sum by (instance) (increase(eplix_duties_completed_total{job="eplix"}[15m])) > 0
+          unless on(instance)
+            sum by (instance) (increase(eplix_duties_missed_total{job="eplix",duty="attestation",reason=~"paused|lost_to_peer"}[15m]))
+              >= on(instance) sum by (instance) (eplix_keys{job="eplix",state="active"})
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} has active keys and completed no duty in 15 minutes"
+          runbook_url: "docs/runbook.md#eplixnodutiescompleted"
+      - alert: EplixDutiesMissed
+        expr: sum by (instance, duty, reason) (increase(eplix_duties_missed_total{job="eplix",reason!~"paused|lost_to_peer"}[15m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} missed {{ $value | humanize }} {{ $labels.duty }} duties ({{ $labels.reason }})"
+          runbook_url: "docs/runbook.md#eplixdutiesmissed"
+      - alert: EplixAttestationsMissedHigh
+        expr: |
+          sum by (instance) (increase(eplix_duties_missed_total{job="eplix",duty="attestation",reason!~"paused|lost_to_peer"}[30m]))
+          / (sum by (instance) (increase(eplix_duties_completed_total{job="eplix",duty="attestation"}[30m]))
+             + sum by (instance) (increase(eplix_duties_missed_total{job="eplix",duty="attestation",reason!~"paused|lost_to_peer"}[30m]))) > 0.1
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} missed {{ $value | humanizePercentage }} of its attestations in 30 minutes"
+          runbook_url: "docs/runbook.md#eplixattestationsmissedhigh"
+      - alert: EplixNoActiveKeys
+        expr: |
+          sum by (instance) (eplix_keys{job="eplix",state!="removed"}) > 0
+          unless sum by (instance) (eplix_keys{job="eplix",state="active"}) > 0
+        for: 30m
+        labels: {severity: critical}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} has keys and none is active"
+          runbook_url: "docs/runbook.md#eplixnoactivekeys"
+
+  - name: eplix-keys
+    rules:
+      - alert: EplixKeyHalted
+        expr: eplix_keys{job="eplix",state="halted"} > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} halted {{ $value }} keys"
+          runbook_url: "docs/runbook.md#eplixkeyhalted"
+      - alert: EplixKeyRefused
+        expr: eplix_keys_refused{job="eplix"} > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} refused {{ $value }} keys until restart"
+          runbook_url: "docs/runbook.md#eplixkeyrefused"
+      - alert: EplixKeySlashed
+        expr: |
+          eplix_keys{job="eplix",state="slashed"} > 0
+          or sum by (instance) (increase(eplix_slashed_on_chain_total{job="eplix"}[1h])) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "A key of Eplix on {{ $labels.instance }} is slashed on chain"
+          runbook_url: "docs/runbook.md#eplixkeyslashed"
+      - alert: EplixDoppelgangerDetected
+        expr: sum by (instance) (increase(eplix_doppelganger_detected_total{job="eplix"}[1h])) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} found a waiting key live on chain"
+          runbook_url: "docs/runbook.md#eplixdoppelgangerdetected"
+      - alert: EplixKeysWaiting
+        expr: eplix_keys{job="eplix",state="doppelganger_wait"} > 0
+        for: 45m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value }} keys of Eplix on {{ $labels.instance }} wait in the doppelganger check for over 45 minutes"
+          runbook_url: "docs/runbook.md#eplixkeyswaiting"
+      - alert: EplixSlashingProtectionRefused
+        expr: sum by (instance, duty) (increase(eplix_slashing_refused_total{job="eplix"}[15m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "The slashing DB of Eplix on {{ $labels.instance }} refused {{ $value | humanize }} {{ $labels.duty }} requests"
+          runbook_url: "docs/runbook.md#eplixslashingprotectionrefused"
+      - alert: EplixKeysRetired
+        expr: sum by (instance, backend) (increase(eplix_keys_retired_total{job="eplix"}[1h])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Eplix on {{ $labels.instance }} retired keys its {{ $labels.backend }} signers no longer list"
+          runbook_url: "docs/runbook.md#eplixkeysretired"
+
+  - name: eplix-signers
+    rules:
+      - alert: EplixSignerMarkLogLost
+        expr: sum by (instance, signer) (increase(eplix_signer_mark_log_lost_total{job="eplix"}[1h])) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "TEE runner {{ $labels.signer }} of Eplix on {{ $labels.instance }} lost its slashing mark log"
+          runbook_url: "docs/runbook.md#eplixsignermarkloglost"
+      - alert: EplixSignerErrors
+        expr: |
+          sum by (instance, backend) (increase(eplix_sign_requests_total{job="eplix",outcome="failed"}[10m]))
+          / sum by (instance, backend) (increase(eplix_sign_requests_total{job="eplix"}[10m])) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of the {{ $labels.backend }} requests of Eplix on {{ $labels.instance }} failed"
+          runbook_url: "docs/runbook.md#eplixsignererrors"
+      - alert: EplixSignerDenied
+        expr: sum by (instance, duty) (increase(eplix_signer_denied_total{job="eplix"}[15m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "A remote signer denied {{ $value | humanize }} {{ $labels.duty }} requests of Eplix on {{ $labels.instance }}"
+          runbook_url: "docs/runbook.md#eplixsignerdenied"
+      - alert: EplixRemoteSignatureInvalid
+        expr: sum by (instance, backend, endpoint) (increase(eplix_remote_signature_invalid_total{job="eplix"}[15m])) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.backend }} {{ $labels.endpoint }} returned {{ $value | humanize }} signatures that do not verify to Eplix on {{ $labels.instance }}"
+          runbook_url: "docs/runbook.md#eplixremotesignatureinvalid"
+      - alert: EplixSigningSlow
+        expr: |
+          histogram_quantile(0.99, sum by (instance, backend, le) (rate(eplix_signing_duration_seconds_bucket{job="eplix"}[10m]))) > 1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "p99 signing time of the {{ $labels.backend }} backend of Eplix on {{ $labels.instance }} is {{ $value | humanizeDuration }}"
+          runbook_url: "docs/runbook.md#eplixsigningslow"
+
+  - name: eplix-beacon-nodes
+    rules:
+      - alert: EplixNoReadyBeaconNode
+        expr: max by (instance) (eplix_beacon_node_ready{job="eplix"}) == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "No beacon node of Eplix on {{ $labels.instance }} passed the start checks"
+          runbook_url: "docs/runbook.md#eplixnoreadybeaconnode"
+      - alert: EplixBeaconNodeDropped
+        expr: eplix_beacon_node_dropped{job="eplix"} == 1
+        labels: {severity: warning}
+        annotations:
+          summary: "A check took beacon node {{ $labels.node }} of Eplix on {{ $labels.instance }} out of use until a restart"
+          runbook_url: "docs/runbook.md#eplixbeaconnodedropped"
+      - alert: EplixNoHealthyBeaconNode
+        expr: max by (instance) (eplix_beacon_node_score{job="eplix"}) < 50
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "The best beacon node of Eplix on {{ $labels.instance }} scores {{ $value }} of 100"
+          runbook_url: "docs/runbook.md#eplixnohealthybeaconnode"
+      - alert: EplixBeaconNodeUnhealthy
+        expr: eplix_beacon_node_score{job="eplix"} < 50
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "Beacon node {{ $labels.node }} of Eplix on {{ $labels.instance }} scores {{ $value }} of 100"
+          runbook_url: "docs/runbook.md#eplixbeaconnodeunhealthy"
+      - alert: EplixSubmissionsFailing
+        expr: |
+          sum by (instance, node) (increase(eplix_beacon_node_submissions_total{job="eplix",result="failed"}[15m]))
+          / sum by (instance, node) (increase(eplix_beacon_node_submissions_total{job="eplix"}[15m])) > 0.2
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Beacon node {{ $labels.node }} refused {{ $value | humanizePercentage }} of the sends of Eplix on {{ $labels.instance }}"
+          runbook_url: "docs/runbook.md#eplixsubmissionsfailing"
+
+  - name: eplix-host
+    rules:
+      - alert: EplixSlashingDbSlow
+        expr: |
+          histogram_quantile(0.99, sum by (instance, le) (rate(eplix_slashing_check_duration_seconds_bucket{job="eplix"}[10m]))) > 0.25
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "p99 slashing DB check, append and fsync of Eplix on {{ $labels.instance }} takes {{ $value | humanizeDuration }}"
+          runbook_url: "docs/runbook.md#eplixslashingdbslow"
+      - alert: EplixProposerConfigErrors
+        expr: sum by (instance) (increase(eplix_proposer_config_errors_total{job="eplix"}[30m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "The proposer config of Eplix on {{ $labels.instance }} failed to load; the last good one stays"
+          runbook_url: "docs/runbook.md#eplixproposerconfigerrors"
+      - alert: EplixThreadPoolQueue
+        expr: eplix_threadpool_queue_length{job="eplix"} > 100
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value }} work items wait in the thread pool of Eplix on {{ $labels.instance }}"
+          runbook_url: "docs/runbook.md#eplixthreadpoolqueue"
+
+  # From the duties monitor (modules.monitor): what the chain shows, a few blocks after the duty.
+  - name: eplix-chain
+    rules:
+      - alert: EplixChainAttestationsMissed
+        expr: sum by (instance) (increase(eplix_monitor_attestations_total{job="eplix",outcome="missed"}[30m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanize }} attestations of Eplix on {{ $labels.instance }} are not on chain"
+          runbook_url: "docs/runbook.md#eplixchainattestationsmissed"
+      - alert: EplixChainProposalMissed
+        expr: sum by (instance) (increase(eplix_monitor_proposals_total{job="eplix",outcome="missed"}[1h])) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "A block proposal of Eplix on {{ $labels.instance }} is not on chain"
+          runbook_url: "docs/runbook.md#eplixchainproposalmissed"
+      - alert: EplixChainInclusionSlow
+        expr: |
+          sum by (instance) (rate(eplix_monitor_inclusion_distance_slots_sum{job="eplix"}[1h]))
+          / sum by (instance) (rate(eplix_monitor_inclusion_distance_slots_count{job="eplix"}[1h])) > 2
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "Attestations of Eplix on {{ $labels.instance }} take {{ $value | humanize }} slots on average to be included"
+          runbook_url: "docs/runbook.md#eplixchaininclusionslow"
+
+  # Alerts on TLS file reloads, TEE runner HEALTH states and the pre-Gloas builder flow.
+  - name: eplix-tls-runners-builder
+    rules:
+      - alert: EplixClientCertificateExpiring
+        expr: eplix_tls_cert_not_after_seconds{job="eplix"} - time() < 2 * 86400
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "The {{ $labels.use }} TLS file {{ $labels.name }} of Eplix on {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"
+          runbook_url: "docs/runbook.md#eplixclientcertificateexpiring"
+      - alert: EplixSignerDegraded
+        expr: eplix_signer_state{job="eplix",state!="ready"} == 1
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Signer {{ $labels.signer }} of Eplix on {{ $labels.instance }} is {{ $labels.state }}"
+          runbook_url: "docs/runbook.md#eplixsignerdegraded"
+      - alert: EplixRegistrationsFailing
+        expr: |
+          sum by (instance, node) (increase(eplix_validator_registrations_total{job="eplix",result="failed"}[15m])) > 0
+          unless sum by (instance, node) (increase(eplix_validator_registrations_total{job="eplix",result="accepted"}[7m])) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Beacon node {{ $labels.node }} refused the validator registrations of Eplix on {{ $labels.instance }} and accepted none in the last epoch"
+          runbook_url: "docs/runbook.md#eplixregistrationsfailing"
+      - alert: EplixBlindedBlockRefused
+        expr: sum by (instance) (increase(eplix_blinded_blocks_total{job="eplix",result="refused"}[1h])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "No beacon node took {{ $value | humanize }} blinded blocks of Eplix on {{ $labels.instance }} in the last hour"
+          runbook_url: "docs/runbook.md#eplixblindedblockrefused"

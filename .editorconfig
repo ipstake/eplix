@@ -1,0 +1,18 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.{fsproj,props,targets,json,yml,yaml}]
+indent_size = 2
+
+[*.{fs,fsi,fsx}]
+max_line_length = 120
+fsharp_max_if_then_else_short_width = 120
+fsharp_max_infix_operator_expression = 100
+fsharp_max_function_binding_width = 100
+fsharp_max_value_binding_width = 100

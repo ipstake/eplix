@@ -1,0 +1,8 @@
+topic: beacon_aggregate_and_proof
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+messages:
+- {current_time_ms: 6500, message: 
+    aggregate_0x2b32eb24e95d80281b276c0a18ebd1d421cbf6b11762caad5b46e701820a04ad,
+  expected: reject, reason: target block is not an ancestor of LMD vote block}

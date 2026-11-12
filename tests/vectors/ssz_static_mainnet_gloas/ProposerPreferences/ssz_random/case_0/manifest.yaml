@@ -1,0 +1,6 @@
+preset: mainnet
+fork: gloas
+runner: ssz_static
+handler: ProposerPreferences
+suite: ssz_random
+case: case_0

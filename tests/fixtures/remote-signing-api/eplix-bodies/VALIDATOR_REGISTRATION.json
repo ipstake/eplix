@@ -1,0 +1,10 @@
+{
+  "type": "VALIDATOR_REGISTRATION",
+  "signingRoot": "0xbaf282e5e542b96c250709c23b776eadcb8887142294b551ece2a1ff14e53fb7",
+  "validator_registration": {
+    "fee_recipient": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "gas_limit": "60000000",
+    "timestamp": "1700000000",
+    "pubkey": "0xa731aad67c06823e88d0aecf6665f5da0ab37d1447e85b99fb8015f574fb9d160feab2a414e88221c10d008a20dd4282"
+  }
+}

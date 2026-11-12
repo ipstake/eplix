@@ -1,0 +1,22 @@
+{
+  "type": "BLOCK_V2",
+  "fork_info": {
+    "fork": {
+      "previous_version": "0x05000001",
+      "current_version": "0x06000001",
+      "epoch": "1"
+    },
+    "genesis_validators_root": "0xa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+  },
+  "signingRoot": "0x7f41824a0afe03eb94e22b5769b2d2f29867f069ddff367a0ea4e20f410c705a",
+  "beacon_block": {
+    "version": "FULU",
+    "block_header": {
+      "slot": "40",
+      "proposer_index": "1",
+      "parent_root": "0x010000000000000000000000000000000000000000000000000000000000005a",
+      "state_root": "0x020000000000000000000000000000000000000000000000000000000000005a",
+      "body_root": "0x030000000000000000000000000000000000000000000000000000000000005a"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# Monthly PRs that move the pinned action SHAs. NuGet packages move by hand:
+# each one needs a reason in docs/dependencies.md and new lock files.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3

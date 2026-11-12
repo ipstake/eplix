@@ -1,0 +1,6 @@
+preset: minimal
+fork: gloas
+runner: operations
+handler: voluntary_exit
+suite: pyspec_tests
+case: voluntary_exit_with_previous_fork_version_not_is_before_fork_epoch

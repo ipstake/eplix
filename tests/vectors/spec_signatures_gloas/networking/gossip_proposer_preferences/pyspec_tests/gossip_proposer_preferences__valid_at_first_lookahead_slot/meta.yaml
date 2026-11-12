@@ -1,0 +1,56 @@
+topic: proposer_preferences
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+- {block: 
+    block_0x2bdd11129831a9f7045c6cba57db119b16c42192f8a0abd3f248bea2f21d15b2}
+- {block: 
+    block_0xf16bbaa1a71b7cad7629682de30a88366130f3e450c935be5003905cc7a70659}
+- {block: 
+    block_0xcf262931d6ce0ab840187a5c41b15fa95df4da7fd562ee86567a0b943c37a09d}
+- {block: 
+    block_0xbd56b5103a57e37c1ffa3ba4ef6fc93d0c237cb462e9eaa682ce3f5085336146}
+- {block: 
+    block_0x1d4bc5bd5cd1b30bae6a1728427c1b489e03ed3f5327cd800ee847d385f99f49}
+- {block: 
+    block_0x565faaf059ed0ee24722e5e8d3813478211e9c97694fa08adba4cb2df432a971}
+- {block: 
+    block_0x82f9e0d2ccc3dfdba2241925a652bcaa71eed4fd66b635a6a683b87f8389acc4}
+- {block: 
+    block_0x69327ced0e4fd82c9aa58725ea713582b98f0c7c11c64f90b68ac9b131021b92}
+- {block: 
+    block_0x92505057cce9381d099e202038b864aa88a668e3359257c3b3685296e2874793}
+- {block: 
+    block_0x8ff3a243b522d9499327d1f76e74089005ee606aa0b74c4b641eca356dec2b1e}
+- {block: 
+    block_0x918c1af0ae0403915bc5cbcae7eca0be642fb8a65bc0ca221a93d33d3ef79669}
+- {block: 
+    block_0x22c11c341c745c99eaecdcf3976280ec8a7f64a4f3318e48572b81d1ef5b863a}
+- {block: 
+    block_0x124b6494bf9476e68993d78cc077f402747aa5f6e1cd6249e8eaf1ddd83278a3}
+- {block: 
+    block_0xd855f593207cc4b899c68645bd8747d5ff5d56003480f5a0141e82fbf31808dd}
+- {block: 
+    block_0x713df7011077b8241090f4089efa5098e1676465aa35cea87a299c0eb312a9ca}
+- {block: 
+    block_0x93ed76ec1a7a9a9d1abc93850d4844be2fe790c31d9a505842dcc36f566c351e}
+- {block: 
+    block_0xd56dd0c86f3aaae5bea2c87d86371611431dbcdd0b6b51a4ee7f099f73a9cb9b}
+- {block: 
+    block_0xb5fdd0613c5ff042b65371bc81e6455697c75bb975998749d387e9ed72f90dce}
+- {block: 
+    block_0xfd4718393e4309502944ccf69ad6b3cecdd747a6dfa6e8cd2d5af171c0eb5371}
+- {block: 
+    block_0x38e48140aa85021d6944764784e459f204ce8f8a937dcbc36b85de6053019e80}
+- {block: 
+    block_0x2f7d5f262ce7751f79cd101e74f9c50b9b55fc306d170dee155882712304c9e5}
+- {block: 
+    block_0x66d700730a5bae473127cd321b8f18343fcdcd2960829b0978f539dd938ff6dd}
+- {block: 
+    block_0xe92b95650009863a9ded82e001c8cbfa8f7a8ed8811d52effdd5e5642a007bfa}
+- {block: 
+    block_0xa69664b093f019d8a985ec63960d37ed0ad399fbab0b3cf24ca10a005e8be578}
+messages:
+- {current_time_ms: 144000, message: 
+    proposer_preferences_0x9967c89543c4bce846a58105357b7ea0f390903f7b20ee95f6f9afed276444a1,
+  expected: valid}

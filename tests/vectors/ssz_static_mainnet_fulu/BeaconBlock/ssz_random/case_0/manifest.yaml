@@ -1,0 +1,6 @@
+preset: mainnet
+fork: fulu
+runner: ssz_static
+handler: BeaconBlock
+suite: ssz_random
+case: case_0

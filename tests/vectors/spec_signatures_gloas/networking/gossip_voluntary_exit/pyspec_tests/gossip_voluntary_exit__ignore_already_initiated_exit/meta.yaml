@@ -1,0 +1,8 @@
+topic: voluntary_exit
+blocks:
+- {block: 
+    block_0xb811f99263872a624174a09f6aeb696101cbf1f80f6b83c5329b2cf5ee6bc859}
+messages:
+- {current_time_ms: 3072000, message: 
+    voluntary_exit_0x65f9ebd7cf9d9f06d407a3f3054b05d2a1234ca79359448813b5b106e1c85ddb,
+  expected: ignore, reason: validator has already initiated exit}

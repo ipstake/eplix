@@ -1,0 +1,8 @@
+topic: beacon_attestation
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+messages:
+- {subnet_id: 2, current_time_ms: 6500, message: 
+    single_attestation_0x2b4cc712a6a6004857bd65f3fe67d3e3dfabcf6a34a925fc292a64dc245d5801,
+  expected: reject, reason: attester is not a member of the committee}

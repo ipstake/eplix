@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The graffiti file: per-key and default texts with templates and rotation.
+       -p:EplixGraffiti=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Graffiti</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="GraffitiFile.fs" />
+    <Compile Include="GraffitiModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

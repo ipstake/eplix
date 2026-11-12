@@ -1,0 +1,8 @@
+topic: voluntary_exit
+blocks:
+- {block: 
+    block_0xb6d4308ac369f10f34c2f1c30698c20a343bab9d785da6f4400a74169601a9f1}
+messages:
+- {current_time_ms: 96000, message: 
+    voluntary_exit_0x8de0a53c5aa263f7622f4a6fdce86b7258cce52e19b897e93303686c3a776ba6,
+  expected: reject, reason: validator has not been active long enough}

@@ -1,0 +1,8 @@
+topic: proposer_preferences
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+messages:
+- {current_time_ms: 100, message: 
+    proposer_preferences_0xcd877fb9e9bb09e6329e20cc8bcc40bb97269b222ef359e11be039d6cac1434b,
+  expected: valid}

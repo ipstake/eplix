@@ -1,0 +1,24 @@
+topic: proposer_preferences
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+- {block: 
+    block_0x2bdd11129831a9f7045c6cba57db119b16c42192f8a0abd3f248bea2f21d15b2}
+- {block: 
+    block_0xf16bbaa1a71b7cad7629682de30a88366130f3e450c935be5003905cc7a70659}
+- {block: 
+    block_0xcf262931d6ce0ab840187a5c41b15fa95df4da7fd562ee86567a0b943c37a09d}
+- {block: 
+    block_0xbd56b5103a57e37c1ffa3ba4ef6fc93d0c237cb462e9eaa682ce3f5085336146}
+- {block: 
+    block_0x1d4bc5bd5cd1b30bae6a1728427c1b489e03ed3f5327cd800ee847d385f99f49}
+- {block: 
+    block_0x565faaf059ed0ee24722e5e8d3813478211e9c97694fa08adba4cb2df432a971}
+- {block: 
+    block_0x82f9e0d2ccc3dfdba2241925a652bcaa71eed4fd66b635a6a683b87f8389acc4}
+- {block: 
+    block_0x9874c4b4cc0339a38c9e6632969fa2ab3b684b1eaf6c669b0a832c81aa2fc1fa}
+messages:
+- {current_time_ms: 144100, message: 
+    proposer_preferences_0xb10784e120db72119815d0122b429919691c8d13590a0b9fde749667bec543e2,
+  expected: valid}

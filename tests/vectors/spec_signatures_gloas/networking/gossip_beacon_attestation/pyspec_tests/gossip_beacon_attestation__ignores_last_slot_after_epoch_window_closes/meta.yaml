@@ -1,0 +1,8 @@
+topic: beacon_attestation
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+messages:
+- {subnet_id: 14, current_time_ms: 192501, message: 
+    single_attestation_0x9596ab18e14526f37a17873aa33aa13a0e1afaaf2be4a8f6f2c5fa83d32618b1,
+  expected: ignore, reason: attestation epoch is not current or previous epoch}

@@ -1,0 +1,6 @@
+preset: mainnet
+fork: gloas
+runner: ssz_static
+handler: ExecutionRequests
+suite: ssz_random
+case: case_1

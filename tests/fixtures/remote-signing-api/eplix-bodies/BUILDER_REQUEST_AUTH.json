@@ -1,0 +1,11 @@
+{
+  "type": "BUILDER_REQUEST_AUTH",
+  "signingRoot": "0x4cb4ea163cf77951c3b7342833667852806f1a384c8f503f3ddde053083c6060",
+  "builder_request_auth": {
+    "version": "GLOAS",
+    "data": {
+      "data": "0x6275696c6465722e6578616d706c652e6f7267",
+      "slot": "82"
+    }
+  }
+}

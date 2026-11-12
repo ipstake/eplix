@@ -1,0 +1,16 @@
+{
+  "type": "VOLUNTARY_EXIT",
+  "fork_info": {
+    "fork": {
+      "previous_version": "0x03000001",
+      "current_version": "0x03000001",
+      "epoch": "0"
+    },
+    "genesis_validators_root": "0xa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+  },
+  "signingRoot": "0x82534ae39a7629a3757cc030c5ba8862e296849395ef55b9996b3f069e782269",
+  "voluntary_exit": {
+    "epoch": "5",
+    "validator_index": "1"
+  }
+}

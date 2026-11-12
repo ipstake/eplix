@@ -1,0 +1,8 @@
+topic: proposer_preferences
+blocks:
+- {block: 
+    block_0x9f87a12d020fe5f111a8e388f428594715e83c39314fecf4b523dd7da27848b5}
+messages:
+- {current_time_ms: 0, message: 
+    proposer_preferences_0xcd8ed64e093d9d91edd170c15f7112bf12560d13f256591cd6f7058041b5548d,
+  expected: ignore, reason: proposal epoch is pre-gloas}

@@ -1,0 +1,25 @@
+{
+  "type": "ATTESTATION",
+  "fork_info": {
+    "fork": {
+      "previous_version": "0x05000001",
+      "current_version": "0x06000001",
+      "epoch": "1"
+    },
+    "genesis_validators_root": "0xa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+  },
+  "signingRoot": "0xd11cb16dd1cde98378e447606372ae60777331d42ef02c8278d8d2cfe9c393e9",
+  "attestation": {
+    "slot": "41",
+    "index": "0",
+    "beacon_block_root": "0x010000000000000000000000000000000000000000000000000000000000005a",
+    "source": {
+      "epoch": "4",
+      "root": "0x040000000000000000000000000000000000000000000000000000000000005a"
+    },
+    "target": {
+      "epoch": "5",
+      "root": "0x050000000000000000000000000000000000000000000000000000000000005a"
+    }
+  }
+}

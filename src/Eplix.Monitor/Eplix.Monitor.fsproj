@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The validator performance monitor: inclusion, votes, proposals, sync messages and balances
+       of this VC's keys, read from the beacon node. -p:EplixMonitor=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Monitor</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Chain.fs" />
+    <Compile Include="MonitorModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

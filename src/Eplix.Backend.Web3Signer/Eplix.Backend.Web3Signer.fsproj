@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Web3Signer backend: the Eth2 remote signing API over HTTP or HTTPS (with
+       optional mutual TLS), whole keys and m-of-n share groups. No packages beyond the BCL.
+       -p:EplixWeb3Signer=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Backend.Web3Signer</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Web3SignerApi.fs" />
+    <Compile Include="Web3SignerBackend.fs" />
+    <Compile Include="Web3SignerModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

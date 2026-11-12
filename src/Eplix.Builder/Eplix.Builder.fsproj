@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The builder module: external builders through produceBlockV4's BuilderConfig,
+       builder request auth, builder preferences, checks of a won bid. -p:EplixBuilder=false drops
+       it; the VC then proposes with self-build and p2p bids. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Builder</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="BuilderModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

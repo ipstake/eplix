@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Doppelganger protection: keys wait for epochs without liveness before they sign.
+       -p:EplixDoppelganger=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Doppelganger</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="DoppelgangerModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

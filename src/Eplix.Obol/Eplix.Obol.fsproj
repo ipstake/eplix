@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Obol mode: combined selection proofs from a distributed validator middleware (Charon).
+       -p:EplixObol=false drops it from the binary. -->
+  <PropertyGroup>
+    <RootNamespace>Eplix.Obol</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Selections.fs" />
+    <Compile Include="ObolModule.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
+  </ItemGroup>
+</Project>

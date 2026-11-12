@@ -1,0 +1,30 @@
+# A squash merge uses the PR title as the commit subject, so it follows the
+# commit subject rules. A separate workflow, so that editing the title
+# reruns only this check.
+name: pr-title
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: PR title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Conventional Commits title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/check-commits.sh --subject "$TITLE"
