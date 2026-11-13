@@ -1613,16 +1613,19 @@ let tests =
                         let pem = b.Leaf.ExportCertificatePem() + "\n" + b.Intermediate.ExportCertificatePem() + "\n"
                         File.WriteAllText(key, b.LeafKey.ExportPkcs8PrivateKeyPem())
                         File.WriteAllText(crt, pem.Substring(0, pem.Length / 3))
-                        do! until "the partial write is read" (fun () -> counter.Results |> List.contains "error")
+                        // TlsFile.Check counts a refused set before it logs it, and swaps a good set in
+                        // before it counts it: each wait is for the later of the two.
+                        do!
+                            until "an error is logged" (fun () ->
+                                lines
+                                |> Seq.exists (fun l ->
+                                    l.StartsWith "ERROR" && l.Contains "the certificate in use stays"))
+
+                        Expect.contains counter.Results "error" "the error is counted"
                         Expect.equal (thumb file) a.Leaf.Thumbprint "the old pair stays"
-
-                        Expect.isTrue
-                            (lines
-                             |> Seq.exists (fun l -> l.StartsWith "ERROR" && l.Contains "the certificate in use stays"))
-                            "an error is logged"
-
                         File.WriteAllText(crt, pem)
-                        do! until "the full write is in force" (fun () -> thumb file = b.Leaf.Thumbprint)
+                        do! until "the full write is counted" (fun () -> counter.Results |> List.contains "ok")
+                        Expect.equal (thumb file) b.Leaf.Thumbprint "the full write is in force"
                         Expect.equal (counter.Results |> List.filter ((=) "ok")) [ "ok" ] "one good reload"
                         stop.Cancel()
                         do! run
@@ -1672,16 +1675,18 @@ let tests =
                         )
 
                         File.WriteAllText(key, c.LeafKey.ExportPkcs8PrivateKeyPem())
-                        do! until "the mismatched pair is read" (fun () -> counter.Results |> List.contains "error")
+                        // TlsFile.Check counts a refused set before it logs it, and swaps a good set in
+                        // before it raises Swapped: each wait is for the later of the two.
+                        do!
+                            until "an error naming the file is logged" (fun () ->
+                                lines |> Seq.exists (fun l -> l.StartsWith "ERROR" && l.Contains crt))
+
+                        Expect.contains counter.Results "error" "the error is counted"
                         Expect.equal (thumb file) a.Leaf.Thumbprint "the old pair stays"
                         Expect.isEmpty (lock swaps (fun () -> List.ofSeq swaps)) "no swap"
-
-                        Expect.isTrue
-                            (lines |> Seq.exists (fun l -> l.StartsWith "ERROR" && l.Contains crt))
-                            "the error names the file"
-
                         writePair crt key c
-                        do! until "the next change loads" (fun () -> thumb file = c.Leaf.Thumbprint)
+                        do! until "the next change swaps" (fun () -> lock swaps (fun () -> swaps.Count > 0))
+                        Expect.equal (thumb file) c.Leaf.Thumbprint "the next change is in force"
                         Expect.equal (lock swaps (fun () -> List.ofSeq swaps)) [ 2 ] "one swap, to generation 2"
                         stop.Cancel()
                         do! run

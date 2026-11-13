@@ -9,6 +9,7 @@ open System.Text
 open System.Threading
 open System.Threading.Tasks
 open Expecto
+open Microsoft.Extensions.Time.Testing
 open Eplix
 open Eplix.Beacon
 open Eplix.Tests.TestUtil
@@ -479,8 +480,9 @@ let tests =
             }
         ]
 
-/// Gives `bytes`, then waits until the reader gives up (a stream the node keeps open).
-type private ThenHang(bytes: byte[]) =
+/// Gives `bytes`, then calls `onHang` and waits until the reader gives up (a stream the node keeps
+/// open).
+type private ThenHang(bytes: byte[], onHang: unit -> unit) =
     inherit Stream()
     let mutable pos = 0
     override _.CanRead = true
@@ -505,6 +507,8 @@ type private ThenHang(bytes: byte[]) =
             pos <- pos + n
             ValueTask<int>(n)
         else
+            onHang ()
+
             ValueTask<int>(
                 task {
                     do! Task.Delay(Timeout.Infinite, ct)
@@ -515,16 +519,27 @@ type private ThenHang(bytes: byte[]) =
 /// An event stream: `body`, then the stream stays open (`hang`) or ends. Counts the connections.
 type private EventAnswer(body: string, hang: bool) =
     inherit HttpMessageHandler()
-    member val Connections = 0 with get, set
+    let mutable connections = 0
+    let opened = new SemaphoreSlim(0)
+    let hanging = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
 
-    override this.SendAsync(_, _) =
-        this.Connections <- this.Connections + 1
+    member _.Connections = Volatile.Read &connections
+
+    /// Released once for each connection.
+    member _.Opened = opened
+
+    /// Done when a stream has given its body and waits (`hang`).
+    member _.Hanging = hanging.Task
+
+    override _.SendAsync(_, _) =
+        Interlocked.Increment &connections |> ignore
+        opened.Release() |> ignore
         let bytes = Encoding.UTF8.GetBytes body
         let resp = new HttpResponseMessage(HttpStatusCode.OK)
 
         resp.Content <-
             if hang then
-                new StreamContent(new ThenHang(bytes)) :> HttpContent
+                new StreamContent(new ThenHang(bytes, (fun () -> hanging.TrySetResult() |> ignore))) :> HttpContent
             else
                 new StreamContent(new Trickle(bytes)) :> HttpContent
 
@@ -532,6 +547,32 @@ type private EventAnswer(body: string, hang: bool) =
 
 let private limited (handler: HttpMessageHandler) (maxBody: int) =
     BeaconClient(new HttpClient(handler), Uri "http://bn.test:5052", TimeSpan.FromSeconds 5.0, maxBody = maxBody)
+
+/// A fake clock that hands each new timer's due time to `Timers`, so a test advances the clock
+/// only once the code under test waits on it.
+type private WatchedClock() =
+    inherit FakeTimeProvider()
+    let timers = Channels.Channel.CreateUnbounded<TimeSpan>()
+
+    member _.Timers = timers.Reader
+
+    override _.CreateTimer(callback, state, dueTime, period) =
+        let t = base.CreateTimer(callback, state, dueTime, period)
+        timers.Writer.TryWrite dueTime |> ignore
+        t
+
+/// Waits for a signal from the code under test. Nothing on that path waits on the real clock; the
+/// bound only ends a test whose signal never comes, with `what` in the message.
+let private signal (what: string) (t: #Task) =
+    task {
+        let t = t :> Task
+        let! first = Task.WhenAny(t, Task.Delay(TimeSpan.FromSeconds 60.0))
+
+        if not (Object.ReferenceEquals(first, t)) then
+            failtestf "no signal within 60 s: %s" what
+
+        do! t
+    }
 
 [<Tests>]
 let limitTests =
@@ -644,36 +685,66 @@ let limitTests =
 
             testT "a silent event stream ends after the idle time" (fun () ->
                 task {
-                    let c = limited (new EventAnswer("event: head\ndata: a\n\n", true)) 1024
+                    let handler = new EventAnswer("event: head\ndata: a\n\n", true)
+                    let c = limited handler 1024
                     let seen = ResizeArray<SseEvent>()
-                    let sw = Diagnostics.Stopwatch.StartNew()
+                    let time = FakeTimeProvider()
+                    let idle = TimeSpan.FromMilliseconds 300.0
 
-                    let! r =
-                        c.Events([ "head" ], seen.Add, CancellationToken.None, idle = TimeSpan.FromMilliseconds 300.0)
+                    let run =
+                        c.Events(
+                            [ "head" ],
+                            (fun e -> lock seen (fun () -> seen.Add e)),
+                            CancellationToken.None,
+                            idle = idle,
+                            time = time
+                        )
 
-                    Expect.equal r (Error Timeout) "a timeout, which the node set does not score"
-                    Expect.equal seen.Count 1 "the event before the silence"
-                    Expect.isLessThan sw.Elapsed (TimeSpan.FromSeconds 10.0) "ended"
+                    // The stream has given its event and waits for more; the idle time starts on the fake clock.
+                    do! signal "the stream waits after its event" handler.Hanging
+                    time.Advance(idle - TimeSpan.FromMilliseconds 1.0)
+                    Expect.isFalse run.IsCompleted "open until the idle time"
+                    time.Advance(TimeSpan.FromMilliseconds 1.0)
+                    do! signal "the stream ends at the idle time" run
+                    Expect.equal run.Result (Error Timeout) "a timeout, which the node set does not score"
+                    Expect.equal (lock seen (fun () -> seen.Count)) 1 "the event before the silence"
                     // The caller's token is not an error.
                     use cts = new CancellationTokenSource(TimeSpan.FromMilliseconds 200.0)
                     let! r = c.Events([ "head" ], ignore, cts.Token)
                     Expect.isOk r "cancelled by the caller"
                 })
 
+            testT "the idle limit runs on the system clock by default" (fun () ->
+                task {
+                    // A node that answers and then sends nothing.
+                    let c = limited (new EventAnswer("", true)) 1024
+
+                    let run =
+                        c.Events([ "head" ], ignore, CancellationToken.None, idle = TimeSpan.FromMilliseconds 100.0)
+                    // The bound in `signal` only catches a stream that never ends, not a slow end under load.
+                    do! signal "the silent stream ends on the system clock" run
+                    Expect.equal run.Result (Error Timeout) "a timeout"
+                })
+
             testT "an exception in the event handler does not end the node's events for good" (fun () ->
                 task {
                     let handler = new EventAnswer("event: head\ndata: a\n\n", false)
                     let c = BeaconClient(new HttpClient(handler), Uri "http://bn.test:5052", TimeSpan.FromSeconds 5.0)
-                    let nodes = BeaconNodes([ c ], 1, TimeProvider.System, Log.none)
+                    let time = WatchedClock()
+                    let nodes = BeaconNodes([ c ], 1, time, Log.none)
                     use cts = new CancellationTokenSource()
                     let run = nodes.RunEvents([ "head" ], (fun _ -> failwith "handler bug"), cts.Token)
-                    let sw = Diagnostics.Stopwatch.StartNew()
-
-                    while handler.Connections < 2 && sw.Elapsed < TimeSpan.FromSeconds 10.0 do
-                        do! Task.Delay 20
-
-                    Expect.isGreaterThanOrEqual handler.Connections 2 "the stream opened again"
-                    Expect.isFalse run.IsFaulted "RunEvents still runs"
+                    do! signal "the stream opens" (handler.Opened.WaitAsync())
+                    // The handler throws on the event; the stream then waits its backoff on the clock.
+                    let timer = time.Timers.ReadAsync().AsTask()
+                    do! signal "the backoff starts" timer
+                    let wait = timer.Result
+                    Expect.equal wait (TimeSpan.FromSeconds 1.0) "the backoff after a stream with an event"
+                    Expect.isFalse run.IsCompleted "RunEvents still runs"
+                    time.Advance wait
+                    do! signal "the stream opens again" (handler.Opened.WaitAsync())
+                    Expect.equal handler.Connections 2 "the second connection"
+                    Expect.isFalse run.IsCompleted "RunEvents still runs"
                     cts.Cancel()
                     do! run
                 })
