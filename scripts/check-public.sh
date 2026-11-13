@@ -12,7 +12,8 @@
 # and a name split over two comment lines all match. CI has no list and runs
 # the regexes only.
 #
-# Allowed: the tee-signer Go import paths in tests/tools/tee-oracle.
+# Allowed: the tee-signer Go import paths in tests/tools/tee-oracle, and
+# the tee-signer repository named as a source in docs/design.md.
 # Skipped: files that are not UTF-8 text, and the SSZ test vectors.
 #
 #   scripts/check-public.sh   check the tracked files
@@ -67,8 +68,12 @@ PATTERNS = [(w, re.compile(r, f), ok) for w, r, f, ok in PATTERNS]
 
 # A line break plus the next line's indent and comment marker, if any.
 JOIN = re.compile(r"[ \t]*\r?\n[ \t]*(?:///?|#+|\(\*|\*+|--|;+|>)?[ \t]*")
-# The Go import paths of tee-signer, whose organisation name may be on the list.
-ALLOW = {"tests/tools/tee-oracle/": re.compile(r"github\.com/[a-z0-9-]+/tee-signer\b")}
+# The tee-signer repository, whose organisation name may be on the list: its
+# Go import paths, and the design's source line.
+ALLOW = {
+    "tests/tools/tee-oracle/": re.compile(r"github\.com/[a-z0-9-]+/tee-signer\b"),
+    "docs/design.md": re.compile(r"\b[a-z0-9-]+/tee-signer\b"),
+}
 
 
 def allowed(path, text):
