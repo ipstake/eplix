@@ -200,7 +200,8 @@ type private BodyReader(maxItems: int, maxKeys: int) =
         let mutable go = true
 
         while go do
-            if mode = MJson then
+            match mode with
+            | MJson ->
                 let mutable r = Utf8JsonReader(data.Slice pos, isFinal, json)
                 let mutable stop = false
 
@@ -210,7 +211,7 @@ type private BodyReader(maxItems: int, maxKeys: int) =
                 pos <- pos + int r.BytesConsumed
                 json <- r.CurrentState
                 go <- stop
-            elif mode = MPrefix then
+            | MPrefix ->
                 while pos < data.Length
                       && (data[pos] = ' 'B || data[pos] = '\t'B || data[pos] = '\n'B || data[pos] = '\r'B) do
                     pos <- pos + 1
@@ -224,7 +225,7 @@ type private BodyReader(maxItems: int, maxKeys: int) =
                     // Not a string: the JSON reader reads the value (null, or an error).
                     mode <- MJson
                     st <- SHistoryValue
-            else
+            | _ ->
                 try
                     let struct (used, written) = unescaper.Run(data.Slice pos, Span unescaped)
                     pos <- pos + used
