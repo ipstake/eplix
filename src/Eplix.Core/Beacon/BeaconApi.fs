@@ -1495,10 +1495,16 @@ type BeaconClient
     /// A line or an event's data over `maxEvent` characters (default MaxEvent) ends the stream
     /// with an error, as does no byte for `idle` (default EventIdle; the error is Timeout), so a
     /// node can neither fill the VC's memory nor hold a dead stream open. Lines end in LF, CRLF or
-    /// CR (the SSE rules).
+    /// CR (the SSE rules). The idle time runs on `time` (default the system clock).
     member _.Events
-        (topics: string seq, onEvent: SseEvent -> unit, ct: CancellationToken, ?idle: TimeSpan, ?maxEvent: int)
-        : Task<Result<unit, ApiError>> =
+        (
+            topics: string seq,
+            onEvent: SseEvent -> unit,
+            ct: CancellationToken,
+            ?idle: TimeSpan,
+            ?maxEvent: int,
+            ?time: TimeProvider
+        ) : Task<Result<unit, ApiError>> =
         task {
             let idle = defaultArg idle BeaconClient.EventIdle
             let maxEvent = defaultArg maxEvent BeaconClient.MaxEvent
@@ -1506,10 +1512,13 @@ type BeaconClient
             use req = new HttpRequestMessage(HttpMethod.Get, url $"/eth/v1/events?topics={topicList}")
             req.Headers.Accept.Add(MediaTypeWithQualityHeaderValue "text/event-stream")
             addHeaders req
-            use cts = CancellationTokenSource.CreateLinkedTokenSource ct
+            // A linked source has no clock of its own, so the idle limit gets a source on `time`.
+            use idleCts = new CancellationTokenSource(Timeout.InfiniteTimeSpan, defaultArg time TimeProvider.System)
+
+            use cts = CancellationTokenSource.CreateLinkedTokenSource(ct, idleCts.Token)
 
             try
-                cts.CancelAfter idle
+                idleCts.CancelAfter idle
                 use! resp = http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token)
 
                 if not resp.IsSuccessStatusCode then
@@ -1561,7 +1570,7 @@ type BeaconClient
                     let mutable go = true
 
                     while go && failure.IsNone do
-                        cts.CancelAfter idle
+                        idleCts.CancelAfter idle
                         let! n = reader.ReadAsync(buf.AsMemory(), cts.Token)
 
                         if n = 0 then
