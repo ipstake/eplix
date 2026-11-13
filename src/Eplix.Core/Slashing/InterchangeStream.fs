@@ -83,38 +83,34 @@ type JsonStringUnescaper() =
                     utf8Left <- utf8Left - 1
                     lo <- 0x80uy
                     hi <- 0xBFuy
-                elif b = '"'B then
-                    mode <- 5
-                elif b = '\\'B then
-                    mode <- 1
-                elif b < 0x20uy then
-                    fail "a control character in a string must be escaped"
                 else
-                    if b >= 0x80uy then
-                        // The lead byte sets the length and the range of the second byte (RFC 3629).
-                        if b >= 0xC2uy && b <= 0xDFuy then
-                            utf8Left <- 1
-                        elif b = 0xE0uy then
-                            utf8Left <- 2
-                            lo <- 0xA0uy
-                        elif (b >= 0xE1uy && b <= 0xECuy) || b = 0xEEuy || b = 0xEFuy then
-                            utf8Left <- 2
-                        elif b = 0xEDuy then
-                            utf8Left <- 2
-                            hi <- 0x9Fuy
-                        elif b = 0xF0uy then
-                            utf8Left <- 3
-                            lo <- 0x90uy
-                        elif b >= 0xF1uy && b <= 0xF3uy then
-                            utf8Left <- 3
-                        elif b = 0xF4uy then
-                            utf8Left <- 3
-                            hi <- 0x8Fuy
-                        else
-                            fail "invalid UTF-8 in a string"
+                    match b with
+                    | '"'B -> mode <- 5
+                    | '\\'B -> mode <- 1
+                    | _ when b < 0x20uy -> fail "a control character in a string must be escaped"
+                    | _ ->
+                        if b >= 0x80uy then
+                            // The lead byte sets the length and the range of the second byte (RFC 3629).
+                            match b with
+                            | _ when b >= 0xC2uy && b <= 0xDFuy -> utf8Left <- 1
+                            | 0xE0uy ->
+                                utf8Left <- 2
+                                lo <- 0xA0uy
+                            | _ when (b >= 0xE1uy && b <= 0xECuy) || b = 0xEEuy || b = 0xEFuy -> utf8Left <- 2
+                            | 0xEDuy ->
+                                utf8Left <- 2
+                                hi <- 0x9Fuy
+                            | 0xF0uy ->
+                                utf8Left <- 3
+                                lo <- 0x90uy
+                            | _ when b >= 0xF1uy && b <= 0xF3uy -> utf8Left <- 3
+                            | 0xF4uy ->
+                                utf8Left <- 3
+                                hi <- 0x8Fuy
+                            | _ -> fail "invalid UTF-8 in a string"
 
-                    dst[w] <- b
-                    w <- w + 1
+                        dst[w] <- b
+                        w <- w + 1
             | 1 ->
                 mode <- 0
 
@@ -625,13 +621,12 @@ type InterchangeReader(maxKeys: int) =
 
             st <- SData
         | SData ->
-            if t = JsonTokenType.EndArray then
-                st <- SRoot
-            elif t = JsonTokenType.StartObject then
+            match t with
+            | JsonTokenType.EndArray -> st <- SRoot
+            | JsonTokenType.StartObject ->
                 beginEntry ()
                 st <- SEntry
-            else
-                fail "expected an object around 'pubkey'"
+            | _ -> fail "expected an object around 'pubkey'"
         | SEntry ->
             if t = JsonTokenType.EndObject then
                 endEntry ()
@@ -667,14 +662,14 @@ type InterchangeReader(maxKeys: int) =
         | SAtts ->
             let isBlocks = st = SBlocks
 
-            if t = JsonTokenType.EndArray then
-                st <- SEntry
-            elif t = JsonTokenType.StartObject then
+            match t with
+            | JsonTokenType.EndArray -> st <- SEntry
+            | JsonTokenType.StartObject ->
                 // The entry's bits move up so the item's own fields start at zero.
                 seen <- seen <<< 8
                 iRootKnown <- false
                 st <- (if isBlocks then SBlock else SAtt)
-            else
+            | _ ->
                 fail (
                     if isBlocks then "expected an object around 'slot'" else "expected an object around 'source_epoch'"
                 )

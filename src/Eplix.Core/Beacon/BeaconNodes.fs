@@ -217,9 +217,10 @@ module BroadcastTopic =
         | _ -> "mixed"
 
     let describe (t: BroadcastTopic) =
-        if t = BroadcastTopic.All then "all"
-        elif t = BroadcastTopic.None then "none"
-        else names |> List.filter (fun (x, _) -> t &&& x = x) |> List.map snd |> String.concat ", "
+        match t with
+        | BroadcastTopic.All -> "all"
+        | BroadcastTopic.None -> "none"
+        | _ -> names |> List.filter (fun (x, _) -> t &&& x = x) |> List.map snd |> String.concat ", "
 
 type BeaconNode =
     {
@@ -836,11 +837,10 @@ type BeaconNodes
         else
             let set = withRole role
 
-            if set.Length = 0 then
-                Task.FromResult(Error(ApiError.Transport "no beacon node with the role is in use"))
-            elif set.Length = 1 then
-                attempt set[0] (ValueSome label) f
-            else
+            match set.Length with
+            | 0 -> Task.FromResult(Error(ApiError.Transport "no beacon node with the role is in use"))
+            | 1 -> attempt set[0] (ValueSome label) f
+            | _ ->
                 let tcs =
                     TaskCompletionSource<Result<unit, ApiError>>(TaskCreationOptions.RunContinuationsAsynchronously)
 
@@ -946,14 +946,14 @@ type BeaconNodes
             let fetch (c: BeaconClient) (t: CancellationToken) = c.AttestationData(slot, 0UL, t)
             let dataNodes = withRole NodeRole.AttestationData
 
-            if dataNodes.Length = 0 then
-                return Error "no beacon node with the role attestation_data is in use"
-            elif dataNodes.Length = 1 then
+            match dataNodes.Length with
+            | 0 -> return Error "no beacon node with the role attestation_data is in use"
+            | 1 ->
                 match! track dataNodes[0] (fetch dataNodes[0].Client ct) with
                 | Ok d when sane slot currentEpoch d -> return Ok d
                 | Ok d -> return Error $"beacon node returned data for slot {d.Slot}, target epoch {d.Target.Epoch}"
                 | Error e -> return Error e.Describe
-            else
+            | _ ->
                 let asked = usable NodeRole.AttestationData threshold
 
                 let checkpointsConfirmed (d: AttestationData) =

@@ -63,10 +63,11 @@ let sanitize (name: string) =
 let escape (value: string) = value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n")
 
 let formatValue (v: float) =
-    if Double.IsPositiveInfinity v then "+Inf"
-    elif Double.IsNegativeInfinity v then "-Inf"
-    elif Double.IsNaN v then "NaN"
-    else v.ToString("R", CultureInfo.InvariantCulture)
+    match v with
+    | Double.PositiveInfinity -> "+Inf"
+    | Double.NegativeInfinity -> "-Inf"
+    | _ when Double.IsNaN v -> "NaN"
+    | _ -> v.ToString("R", CultureInfo.InvariantCulture)
 
 /// `{a="x",b="y"}`, labels sorted by name; empty for no labels.
 let renderLabels (labels: (string * string) seq) =
