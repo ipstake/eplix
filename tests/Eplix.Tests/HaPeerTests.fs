@@ -130,6 +130,61 @@ let private runHaPeerWith
 
 let private runHaPeer (dir: string) (ready: CoreServices -> Task) = runHaPeerWith dir (fun _ _ core -> ready core)
 
+/// Local keys that sign every duty, except the attestations and sync committee messages of the
+/// keys in `lost`: those come back lost to an HA peer, as a runner answers the VC that asks second.
+let private losingKeys (keys: int list) (lost: int list) =
+    let inner =
+        LocalBackend.create "local" [ for i in keys -> pubkeyOf i, SecretKey.Copy(ReadOnlySpan(secretOf i)) ]
+
+    let lostKeys = [ for i in lost -> pubkeyOf i ]
+
+    let backend =
+        { inner with
+            Sign =
+                fun r ct ->
+                    match r.Duty with
+                    | Duty.Attestation _
+                    | Duty.SyncCommitteeMessage _ when List.contains r.Key lostKeys ->
+                        Task.FromResult(Refused(LostToPeer "r1: SC_ERR_SLASH_TARGET"))
+                    | _ -> inner.Sign r ct
+        }
+
+    [ for i in keys -> pubkeyOf i, backend ]
+
+/// The items of every JSON array the VC posted to a path that ends in `suffix`.
+let private postedItems (h: Harness) (suffix: string) =
+    [
+        for p, body in List.ofSeq h.Node.Posts do
+            if p.EndsWith suffix then
+                use d = JsonDocument.Parse(body: string)
+
+                for x in d.RootElement.EnumerateArray() do
+                    x.Clone()
+    ]
+
+/// Polls a condition in real time; the fake clock does not move on its own.
+let private waitUntil (lines: Collections.Concurrent.ConcurrentQueue<string>) (what: string) (cond: unit -> bool) =
+    task {
+        let sw = Diagnostics.Stopwatch.StartNew()
+
+        while not (cond ()) && sw.Elapsed < TimeSpan.FromSeconds 20.0 do
+            do! Task.Delay 10
+
+        if not (cond ()) then
+            failtestf "timed out waiting for %s; log:\n%s" what (String.Join("\n", lines))
+    }
+
+let private advanceTo (h: Harness) (t: DateTimeOffset) =
+    let now = h.Time.GetUtcNow()
+
+    if t > now then
+        h.Time.Advance(t - now)
+
+let private missedCount (collector: Collector) (duty: string) (reason: string) =
+    defaultArg
+        (seriesValue (collector.Render []) $"""eplix_duties_missed_total{{duty="{duty}",reason="{reason}"}}""")
+        0.0
+
 let private answering (name: string) (o: SignOutcome) : Backend =
     {
         Name = name
@@ -522,4 +577,136 @@ let tests =
 
                 Expect.isError (settings """, "ha_peer": "yes" """) "not a boolean"
             }
+
+            testT "aggregates: a committee whose votes were all lost to the peer is skipped as lost_to_peer" (fun () ->
+                task {
+                    use collector = new Collector([ Metrics.MeterName ])
+                    let before = missedCount collector "aggregate_and_proof" "lost_to_peer"
+                    let h = harness ()
+
+                    for i in 0..15 do
+                        h.Node.AddValidator(pubkeyOf i, "active_ongoing") |> ignore
+
+                    // Every key aggregates at this length. Slot 0: validators 0 and 8 in committee 0,
+                    // both votes lost. Slot 1: validators 1 and 9 in committee 1, 1 lost and 9 signed.
+                    h.Node.CommitteeLength <- 8UL
+                    use cts = new CancellationTokenSource()
+
+                    let! run, db, lines, _ =
+                        startSchedulerWith
+                            h
+                            (Path.Combine(tempDir (), "s.db"))
+                            (losingKeys [ 0..15 ] [ 0; 8; 1 ])
+                            false
+                            cts.Token
+
+                    for s in 0UL .. 1UL do
+                        do! h.RunSlots(s, s)
+                        advanceTo h (h.Clock.SlotStart s + h.Spec.AggregateDue + TimeSpan.FromMilliseconds 1.0)
+
+                    let aggregatorsAt (slot: string) =
+                        postedItems h "aggregate_and_proofs"
+                        |> List.map (fun a -> a.GetProperty "message")
+                        |> List.filter (fun m ->
+                            m.GetProperty("aggregate").GetProperty("data").GetProperty("slot").GetString() = slot)
+                        |> List.map (fun m -> m.GetProperty("aggregator_index").GetString())
+                        |> List.sort
+
+                    do! waitUntil lines "the aggregates of slot 1" (fun () -> (aggregatorsAt "1").Length >= 2)
+
+                    do!
+                        waitUntil lines "the aggregate step of slot 0" (fun () ->
+                            missedCount collector "aggregate_and_proof" "lost_to_peer" - before >= 2.0
+                            || not (aggregatorsAt "0").IsEmpty)
+
+                    cts.Cancel()
+                    do! run
+                    (db :> IDisposable).Dispose()
+                    let log = String.Join('\n', lines)
+
+                    Expect.isEmpty (aggregatorsAt "0") $"slot 0: every vote of committee 0 was lost; log: {log}"
+
+                    Expect.equal
+                        (aggregatorsAt "1")
+                        [ "1"; "9" ]
+                        $"slot 1: a vote of committee 1 went through, so both aggregate; log: {log}"
+
+                    Expect.equal
+                        (h.Node.RequestCount "GET /eth/v2/validator/aggregate_attestation")
+                        1
+                        "the node is asked for committee 1 only"
+
+                    Expect.equal
+                        (missedCount collector "aggregate_and_proof" "lost_to_peer" - before)
+                        2.0
+                        "the two skipped aggregates count as lost to the peer"
+                })
+
+            testT
+                "sync contributions: a subcommittee whose messages were all lost to the peer is skipped as lost_to_peer"
+                (fun () ->
+                    task {
+                        use collector = new Collector([ Metrics.MeterName ])
+                        let before = missedCount collector "contribution_and_proof" "lost_to_peer"
+                        let h = harness ()
+
+                        for i in 0..3 do
+                            h.Node.AddValidator(pubkeyOf i, "active_ongoing") |> ignore
+
+                        // Validator 0 alone in subcommittee 0, its message lost. Validators 2 (lost)
+                        // and 3 (signed) in subcommittee 2.
+                        h.Node.SyncSeats[0UL] <- [| 0UL |]
+                        h.Node.SyncSeats[2UL] <- [| 16UL |]
+                        h.Node.SyncSeats[3UL] <- [| 17UL |]
+                        use cts = new CancellationTokenSource()
+
+                        let! run, db, lines, _ =
+                            startSchedulerWith
+                                h
+                                (Path.Combine(tempDir (), "s.db"))
+                                (losingKeys [ 0..3 ] [ 0; 2 ])
+                                false
+                                cts.Token
+
+                        do! h.RunSlots(0UL, 1UL)
+                        // The messages of slot 1 are out before the contributions are due.
+                        do!
+                            waitUntil lines "the sync message of slot 1" (fun () ->
+                                postedItems h "sync_committees"
+                                |> List.exists (fun m -> m.GetProperty("slot").GetString() = "1"))
+
+                        advanceTo h (h.Clock.SlotStart 1UL + h.Spec.ContributionDue + TimeSpan.FromMilliseconds 1.0)
+
+                        let aggregatorsAt (slot: string) =
+                            postedItems h "contribution_and_proofs"
+                            |> List.map (fun c -> c.GetProperty "message")
+                            |> List.filter (fun m ->
+                                m.GetProperty("contribution").GetProperty("slot").GetString() = slot)
+                            |> List.map (fun m -> m.GetProperty("aggregator_index").GetString())
+                            |> List.sort
+
+                        do!
+                            waitUntil lines "the contributions of slot 1" (fun () ->
+                                (aggregatorsAt "1" |> List.filter (fun i -> i <> "0")).Length >= 2)
+
+                        do!
+                            waitUntil lines "the contribution step of slot 1" (fun () ->
+                                missedCount collector "contribution_and_proof" "lost_to_peer" - before >= 1.0
+                                || List.contains "0" (aggregatorsAt "1"))
+
+                        cts.Cancel()
+                        do! run
+                        (db :> IDisposable).Dispose()
+                        let log = String.Join('\n', lines)
+
+                        Expect.equal
+                            (aggregatorsAt "1")
+                            [ "2"; "3" ]
+                            $"slot 1: subcommittee 0 skipped, subcommittee 2 had a message through; log: {log}"
+
+                        Expect.isGreaterThanOrEqual
+                            (missedCount collector "contribution_and_proof" "lost_to_peer" - before)
+                            1.0
+                            "the skipped contribution counts as lost to the peer"
+                    })
         ]

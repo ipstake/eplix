@@ -782,14 +782,16 @@ type BeaconClient
         let message, failures = errorOf status body
         if status = 400 && not failures.IsEmpty then Rejected failures else Http(status, message)
 
-    let send
+    /// Sends a request and waits up to `timeout` for the whole answer.
+    let sendWithin
+        (timeout: TimeSpan)
         (req: HttpRequestMessage)
         (decoder: (JsonElement -> 'T) voption)
         (ct: CancellationToken)
         : Task<Result<'T voption, ApiError>> =
         task {
             use cts = CancellationTokenSource.CreateLinkedTokenSource ct
-            cts.CancelAfter requestTimeout
+            cts.CancelAfter timeout
             addHeaders req
 
             try
@@ -810,6 +812,8 @@ type BeaconClient
             | :? HttpRequestException as e -> return Error(Transport e.Message)
             | :? IOException as e -> return Error(Transport e.Message)
         }
+
+    let send req decoder ct = sendWithin requestTimeout req decoder ct
 
     /// `send` for a large answer read by a decoder over its raw bytes: the body goes into a
     /// buffer from the shared pool instead of a new array, which for a body over 85 KB would land
@@ -901,7 +905,8 @@ type BeaconClient
             | Error e -> return Error e
         }
 
-    let postAs
+    let postWithin
+        (timeout: TimeSpan)
         (contentType: string)
         path
         (body: byte[])
@@ -919,8 +924,11 @@ type BeaconClient
             let content = new ByteArrayContent(body)
             content.Headers.ContentType <- MediaTypeHeaderValue contentType
             req.Content <- content
-            return! send req decoder ct
+            return! sendWithin timeout req decoder ct
         }
+
+    let postAs contentType path body headers decoder ct =
+        postWithin requestTimeout contentType path body headers decoder ct
 
     let post path body headers decoder ct = postAs "application/json" path body headers decoder ct
 
@@ -1258,16 +1266,23 @@ type BeaconClient
         }
 
     /// POST /eth/v2/beacon/blinded_blocks with a SignedBlindedBeaconBlock, as SSZ; JSON when the
-    /// node refuses SSZ (415). The node asks its relays for the payload.
+    /// node refuses SSZ (415). The node asks its relays for the payload and answers only after
+    /// them: MEV-Boost gives up on its relays after 4 s by default, as long as the default
+    /// request timeout, and the node then answers 502. So this waits twice the request timeout,
+    /// as block production does, and reports the node's answer instead of a timeout. The block is
+    /// signed by then; only the publish waits longer.
     member _.PublishBlindedBlock(version: string, signed: Publication, ct) : Task<Result<unit, ApiError>> =
         task {
             let headers = [ "Eth-Consensus-Version", version ]
             let path = "/eth/v2/beacon/blinded_blocks?broadcast_validation=gossip"
+            let timeout = requestTimeout * 2.0
 
-            match! postAs "application/octet-stream" path signed.Ssz headers ValueNone ct with
+            match! postWithin timeout "application/octet-stream" path signed.Ssz headers ValueNone ct with
             | Ok _ -> return Ok()
             | Error(Http(415, _)) ->
-                match! post path (SszJson.toBytes signed.Schema signed.Value) headers ValueNone ct with
+                let json = SszJson.toBytes signed.Schema signed.Value
+
+                match! postWithin timeout "application/json" path json headers ValueNone ct with
                 | Ok _ -> return Ok()
                 | Error e -> return Error e
             | Error e -> return Error e

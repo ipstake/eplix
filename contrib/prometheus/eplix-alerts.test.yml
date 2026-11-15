@@ -184,6 +184,14 @@ tests:
       - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="dirk",duty="attestation",outcome="failed"}', values: '0+10x30'}
       - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="local",duty="attestation",outcome="signed"}', values: '0+100x30'}
       - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="local",duty="attestation",outcome="failed"}', values: '0x30'}
+      # A group member stopped once the group had its result counts as stopped: neither failed nor in
+      # the total. 3 failed of 53 answers is over 5%, of 103 requests it would not be.
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="tee-a",duty="sync_committee_message",outcome="signed"}', values: '0+50x30'}
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="tee-a",duty="sync_committee_message",outcome="stopped"}', values: '0+50x30'}
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="tee-a",duty="sync_committee_message",outcome="failed"}', values: '0+3x30'}
+      # Many stopped, none failed: no alert.
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="tee-b",duty="sync_committee_message",outcome="signed"}', values: '0+50x30'}
+      - {series: 'eplix_sign_requests_total{job="eplix",instance="vc1",backend="tee-b",duty="sync_committee_message",outcome="stopped"}', values: '0+50x30'}
       - {series: 'eplix_signing_duration_seconds_bucket{job="eplix",instance="vc1",backend="tee",duty="attestation",le="0.5"}', values: '0+10x30'}
       - {series: 'eplix_signing_duration_seconds_bucket{job="eplix",instance="vc1",backend="tee",duty="attestation",le="2.5"}', values: '0+100x30'}
       - {series: 'eplix_signing_duration_seconds_bucket{job="eplix",instance="vc1",backend="tee",duty="attestation",le="+Inf"}', values: '0+100x30'}
@@ -211,6 +219,8 @@ tests:
         exp_alerts:
           - exp_labels: {severity: warning, instance: vc1, backend: dirk}
             exp_annotations: {summary: "10% of the dirk requests of Eplix on vc1 failed", runbook_url: "docs/runbook.md#eplixsignererrors"}
+          - exp_labels: {severity: warning, instance: vc1, backend: tee-a}
+            exp_annotations: {summary: "5.66% of the tee-a requests of Eplix on vc1 failed", runbook_url: "docs/runbook.md#eplixsignererrors"}
       - eval_time: 25m
         alertname: EplixSigningSlow
         exp_alerts:
