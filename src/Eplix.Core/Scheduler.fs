@@ -230,6 +230,12 @@ type DutyScheduler
     let headVotes = HeadVotes(nodes.Threshold)
     let dependentVotes = Dictionary<Epoch, Dictionary<int, Root>>()
     let attested = Dictionary<Slot, AttestationData>()
+    /// Per slot, the root of the attestation data signed and the committees in which every vote
+    /// of this VC was lost to an HA peer. The peer aggregates those committees, so this VC leaves
+    /// them to it. Only slots with such a committee have an entry.
+    let lostVotes = Dictionary<Slot, struct (Root * HashSet<uint64>)>()
+    /// The same for sync committee messages: the block root signed and the subcommittees.
+    let lostSyncMessages = Dictionary<Slot, struct (Root * HashSet<uint64>)>()
     let syncRoots = Dictionary<Slot, Lazy<Task<Result<Root, string>>>>()
     let aggregators = Dictionary<Slot, List<AggregatorDuty>>()
     let selectionDone = HashSet<Epoch>()
@@ -295,6 +301,43 @@ type DutyScheduler
             | ValueNone -> None)
 
     let requests keys priority deadline duty = Duty.requests spec gvr keys priority deadline duty
+
+    /// Whether some message of a burst was lost to an HA peer. A loop, so the common case of no
+    /// loss allocates nothing.
+    let anyLost (outcomes: SignOutcome[]) =
+        let mutable found = false
+        let mutable i = 0
+
+        while not found && i < outcomes.Length do
+            match outcomes[i] with
+            | Refused(LostToPeer _) -> found <- true
+            | _ -> i <- i + 1
+
+        found
+
+    /// The groups (committees or subcommittees) in which some message of a burst was lost to an
+    /// HA peer and none was signed. `groupsOf i` gives the groups of request i.
+    let lostOnly (outcomes: SignOutcome[]) (groupsOf: int -> uint64 seq) : HashSet<uint64> voption =
+        let lost = HashSet<uint64>()
+        let through = HashSet<uint64>()
+
+        for i in 0 .. outcomes.Length - 1 do
+            match outcomes[i] with
+            | Refused(LostToPeer _) -> lost.UnionWith(groupsOf i)
+            | Signed _
+            | Partial _ -> through.UnionWith(groupsOf i)
+            | _ -> ()
+
+        lost.ExceptWith through
+        if lost.Count = 0 then ValueNone else ValueSome lost
+
+    /// The groups of `slot` in `table` lost to an HA peer for the message with `root`. ValueNone
+    /// when none was lost, or when the entry is for another message.
+    let lostGroups (table: Dictionary<Slot, struct (Root * HashSet<uint64>)>) (slot: Slot) (root: Root) =
+        lock gate (fun () ->
+            match table.TryGetValue slot with
+            | true, struct (r, groups) when r = root -> ValueSome groups
+            | _ -> ValueNone)
 
     /// An emergency switch stops this duty kind: count the duties as missed (reason `paused`)
     /// without asking a node for data that would not be signed. The switch board logs the
@@ -988,6 +1031,13 @@ type DutyScheduler
 
                     let! outcomes = pipeline.SignBurst(reqs, ct)
 
+                    if anyLost outcomes then
+                        match lostOnly outcomes (fun i -> Seq.singleton mine[i].CommitteeIndex) with
+                        | ValueSome committees ->
+                            let root = Codec.hashAttestationData data
+                            lock gate (fun () -> lostVotes[slot] <- struct (root, committees))
+                        | ValueNone -> ()
+
                     let signed =
                         Array.zip mine outcomes
                         |> Array.choose (fun (d, o) ->
@@ -1095,7 +1145,23 @@ type DutyScheduler
                 let schema = Schemas.attestationAt gloas preset
                 let deadline = clock.SlotStart(slot + 1UL)
                 let soft = softCutoff (clock.SlotStart slot + spec.AggregateDueAt slot) deadline
-                let byCommittee = mine |> Array.groupBy (fun a -> a.Duty.CommitteeIndex)
+                let committees = mine |> Array.groupBy (fun a -> a.Duty.CommitteeIndex)
+                // Committees where every vote of this VC was lost to an HA peer: the peer aggregates
+                // its own vote there, so this VC does not ask its node.
+                let byCommittee =
+                    match lostGroups lostVotes slot dataRoot with
+                    | ValueNone -> committees
+                    | ValueSome lost ->
+                        let skipped, asked = committees |> Array.partition (fun (c, _) -> lost.Contains c)
+
+                        for committee, group in skipped do
+                            log.Info
+                                $"slot {slot}: aggregate for committee {committee} skipped: this VC lost its votes there to an HA peer"
+
+                            Metrics.missed "aggregate_and_proof" Metrics.Reason.LostToPeer group.Length
+
+                        asked
+
                 let toSign = List<AggregatorDuty * Ssz.SszValue>()
 
                 let bits (v: Ssz.SszValue) =
@@ -1357,6 +1423,16 @@ type DutyScheduler
                     let! outcomes = pipeline.SignBurst(reqs, ct)
                     Metrics.missedOutcomes "sync_committee_message" outcomes
 
+                    if anyLost outcomes then
+                        let subcommitteesOf i =
+                            duties
+                            |> Seq.filter (fun d -> d.ValidatorIndex = one[i].ValidatorIndex)
+                            |> Seq.collect (fun d -> Selection.subcommittees spec d.Indices)
+
+                        match lostOnly outcomes subcommitteesOf with
+                        | ValueSome subs -> lock gate (fun () -> lostSyncMessages[slot] <- struct (root, subs))
+                        | ValueNone -> ()
+
                     let msgs =
                         Array.zip one outcomes
                         |> Array.choose (fun (d, o) ->
@@ -1442,7 +1518,22 @@ type DutyScheduler
                             ValueNone
                     | _ -> ValueSome "not a contribution"
 
-                let bySub = mine |> Array.groupBy (fun a -> a.Subcommittee)
+                let subs = mine |> Array.groupBy (fun a -> a.Subcommittee)
+                // Subcommittees where every message of this VC was lost to an HA peer, as for aggregates.
+                let bySub =
+                    match lostGroups lostSyncMessages slot root with
+                    | ValueNone -> subs
+                    | ValueSome lost ->
+                        let skipped, asked = subs |> Array.partition (fun (s, _) -> lost.Contains s)
+
+                        for sub, group in skipped do
+                            log.Info
+                                $"slot {slot}: contribution for subcommittee {sub} skipped: this VC lost its messages there to an HA peer"
+
+                            Metrics.missed "contribution_and_proof" Metrics.Reason.LostToPeer group.Length
+
+                        asked
+
                 // All subcommittees at once, as for aggregates.
                 let! answers =
                     bySub
@@ -1975,6 +2066,15 @@ type DutyScheduler
 
                         for x in attested.Keys |> Seq.filter oldSlot |> List.ofSeq do
                             attested.Remove x |> ignore
+
+                        // Mostly empty: no walk then.
+                        if lostVotes.Count > 0 then
+                            for x in lostVotes.Keys |> Seq.filter oldSlot |> List.ofSeq do
+                                lostVotes.Remove x |> ignore
+
+                        if lostSyncMessages.Count > 0 then
+                            for x in lostSyncMessages.Keys |> Seq.filter oldSlot |> List.ofSeq do
+                                lostSyncMessages.Remove x |> ignore
 
                         for x in syncRoots.Keys |> Seq.filter oldSlot |> List.ofSeq do
                             syncRoots.Remove x |> ignore

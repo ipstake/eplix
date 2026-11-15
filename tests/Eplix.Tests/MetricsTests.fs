@@ -576,4 +576,107 @@ let tests =
                     finally
                         Environment.SetEnvironmentVariable(variable, null)
                 })
+
+            // Sequenced: the member timers run on the wall clock, which a loaded thread pool delays.
+            testSequenced
+            <| testT "sign requests: a group member stopped after the result counts as stopped, not failed" (fun () ->
+                task {
+                    use collector = new Collector([ Metrics.MeterName ])
+                    // Backend names of this test only: the meter is shared with the other tests.
+                    let tag = Guid.NewGuid().ToString("N").Substring(0, 8)
+                    let secret, shares = ThresholdTests.shamir 650 2 [ 1UL; 2UL; 3UL ]
+                    let key = ThresholdTests.pk secret
+                    let partial i = ThresholdTests.partialOf (fst shares[i]) (snd shares[i])
+                    let failure _ = Failed(SignFailure.Transport "connection refused")
+                    let budget = TimeSpan.FromSeconds 5.0
+
+                    let count (backend: string) (outcome: string) =
+                        let series =
+                            $"""eplix_sign_requests_total{{backend="{backend}-{tag}",duty="randao_reveal",outcome="{outcome}"}}"""
+
+                        defaultArg (seriesValue (collector.Render []) series) 0.0
+
+                    /// A 2 of 3 group: (backend name, answer, delay, member budget) per member.
+                    let group (members: (string * (SignRequest -> SignOutcome) * TimeSpan * TimeSpan) list) =
+                        let b =
+                            Threshold.create
+                                "test"
+                                2
+                                [
+                                    for i, (name, answer, delay, memberBudget) in List.indexed members ->
+                                        let x =
+                                            ThresholdTests.FakeMember(fst shares[i], key, snd shares[i], answer, delay)
+
+                                        {
+                                            Backend =
+                                                { x.Backend with
+                                                    Name = $"{name}-{tag}"
+                                                }
+                                            Index = fst shares[i]
+                                            Budget = memberBudget
+                                        }
+                                ]
+                                TimeProvider.System
+                                Log.none
+
+                        b.Keys CancellationToken.None |> fun t -> t.Wait()
+                        b
+
+                    // RANDAO reveals stop the slower members once 2 partials are in.
+                    let req = ThresholdTests.request key (Duty.RandaoReveal 1UL)
+
+                    let expectSigned (o: SignOutcome) =
+                        Expect.isTrue
+                            (match o with
+                             | Signed _ -> true
+                             | _ -> false)
+                            $"signed: %A{o}"
+
+                    let g1 =
+                        group
+                            [
+                                "fast1", partial 0, TimeSpan.Zero, budget
+                                "fast2", partial 1, TimeSpan.Zero, budget
+                                "slow", partial 2, TimeSpan.FromSeconds 5.0, budget
+                            ]
+
+                    let! o = g1.Sign req CancellationToken.None
+                    expectSigned o
+                    // The stopped member counts once its call has ended.
+                    let sw = Diagnostics.Stopwatch.StartNew()
+
+                    while count "slow" "stopped" + count "slow" "failed" < 1.0 && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
+                        do! Task.Delay 10
+
+                    Expect.equal (count "slow" "stopped") 1.0 "the member stopped after the result counts as stopped"
+                    Expect.equal (count "slow" "failed") 0.0 "and not as failed"
+                    Expect.equal (count "fast1" "signed") 1.0 "a member that signed counts as signed"
+
+                    // An error before the result, and a member's own timeout before the result, stay failed.
+                    let g2 =
+                        group
+                            [
+                                "ok1", partial 0, TimeSpan.Zero, budget
+                                "error", failure, TimeSpan.Zero, budget
+                                "ok3", partial 2, TimeSpan.FromMilliseconds 300.0, budget
+                            ]
+
+                    let! o = g2.Sign req CancellationToken.None
+                    expectSigned o
+                    Expect.equal (count "error" "failed") 1.0 "an error before the result counts as failed"
+
+                    let g3 =
+                        group
+                            [
+                                "ok4", partial 0, TimeSpan.Zero, budget
+                                "late", partial 1, TimeSpan.FromSeconds 5.0, TimeSpan.FromMilliseconds 50.0
+                                "ok6", partial 2, TimeSpan.FromSeconds 1.0, budget
+                            ]
+
+                    let! o = g3.Sign req CancellationToken.None
+                    expectSigned o
+
+                    Expect.equal (count "late" "failed") 1.0 "a member timeout before the result counts as failed"
+                    Expect.equal (count "late" "stopped") 0.0 "and not as stopped"
+                })
         ]

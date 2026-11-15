@@ -172,6 +172,8 @@ A TEE runner's HEALTH answer reports `mark_log_lost`: the runner lost its slashi
 
 Over 5% of the requests to one backend failed for 5 minutes: timeouts, refused connections, TLS failures.
 
+The share counts the requests that got an answer or failed. A threshold group stops its slower members once it has its result, for every kind except votes, blocks, PTC votes and envelopes; those requests count as `outcome="stopped"` in `eplix_sign_requests_total` and are left out of this alert. Many stopped requests for one member only mean it answers later than the others.
+
 - Check the signer processes and the network between the VC and the signers.
 - For threshold groups, the VC still signs while a threshold of members answers; the alert warns before that margin is gone.
 - TLS errors after a certificate change: check the client certificate, its chain and expiry.
@@ -218,6 +220,8 @@ A TLS certificate or CA file the VC uses expires within 2 days: a client certifi
 ## HA pairs
 
 With `"ha_peer": true` in `modules.tee`, two VCs sign the same keys through the same runners. A runner signs each duty once. The VC that asks second gets an "already signed" refusal (`SC_ERR_SLASH_TARGET`, `SC_ERR_SLASH_SOURCE`, `SC_ERR_SLASH_BLOCK` or `SC_ERR_EQUIVOCATION`), skips the duty and keeps the key. It logs `lost the <duty> to an HA peer` at Info and counts the duty in `eplix_ha_peer_lost_total{duty}` and in `eplix_duties_missed_total` with reason `lost_to_peer`. `EplixDutiesMissed` and `EplixAttestationsMissedHigh` leave those misses out, and `EplixNoDutiesCompleted` counts lost attestations as it counts paused ones. Every other slashing refusal still halts the key.
+
+A VC that lost every vote of a committee in a slot does not ask its node for that committee's aggregate: the peer that signed the votes aggregates that committee. The node may still hold an aggregate from other validators' votes; when this VC's data differs from the network's, it usually answers 404. The aggregates count as missed with reason `lost_to_peer` and the VC logs `aggregate for committee <n> skipped` at Info. Sync contributions work the same way per subcommittee. A committee where one of its votes went through still aggregates.
 
 So one VC's alerts do not show whether the pair does its work. Watch the pair:
 
@@ -267,6 +271,7 @@ A node refused over 20% of the sends for 15 minutes (attestations, aggregates, b
 No beacon node took a signed blinded block from the pre-Gloas builder flow (`eplix_blinded_blocks_total{result="refused"}`). The block is signed, so the VC cannot sign another for that slot, and the proposal is likely lost.
 
 - Check the relay and MEV-Boost logs for the slot and the beacon node's publish errors.
+- The VC waits up to twice `request_timeout_ms` for each node's answer to a blinded block, since the node answers only after its relays (MEV-Boost gives up on them after 4 s by default). The error line gives the node's answer, for example `publish: HTTP 502: no successful relay response`, which means the relays did not return the payload. `publish: timeout` means the node did not answer in that time.
 
 ### EplixRegistrationsFailing
 

@@ -40,6 +40,22 @@ type FixtureHandler(routes: Map<string, int * string>) =
             | None -> return new HttpResponseMessage(HttpStatusCode.NotFound)
         }
 
+/// Answers every request after `delay` with `status` and a Beacon API error body, unless the
+/// request is cancelled first.
+type private SlowError(delay: TimeSpan, status: int, message: string) =
+    inherit HttpMessageHandler()
+
+    override _.SendAsync(_, ct) =
+        task {
+            do! Task.Delay(delay, ct)
+            let resp = new HttpResponseMessage(enum<HttpStatusCode> status)
+
+            resp.Content <-
+                new StringContent($"""{{"code":{status},"message":"{message}"}}""", Encoding.UTF8, "application/json")
+
+            return resp
+        }
+
 let private client routes =
     let h = new FixtureHandler(Map.ofList routes)
     let http = new HttpClient(h)
@@ -248,6 +264,33 @@ let tests =
 
                     Expect.equal server.Reached 0 "nothing reached the target"
                 })
+
+            // Sequenced: it runs on wall-clock timers, which a loaded thread pool delays.
+            testSequenced
+            <| testT
+                "blinded block publish: a node answer after the request timeout is reported, not a timeout"
+                (fun () ->
+                    task {
+                        // The node waits for its relays before it answers: MEV-Boost gives up after
+                        // 4 s, the default request timeout, and the node then answers 502.
+                        let timeout = TimeSpan.FromSeconds 1.0
+                        let signed = Publication.Of(Ssz.Uint 8, Ssz.U 1UL)
+
+                        let publish (delay: TimeSpan) =
+                            let handler = new SlowError(delay, 502, "no successful relay response")
+                            let c = BeaconClient(new HttpClient(handler), Uri "http://bn.test:5052", timeout)
+                            c.PublishBlindedBlock("fulu", signed, CancellationToken.None)
+
+                        let! r = publish (TimeSpan.FromSeconds 1.4)
+
+                        Expect.equal
+                            r
+                            (Error(ApiError.Http(502, "no successful relay response")))
+                            "the node's status and message"
+
+                        let! r = publish Threading.Timeout.InfiniteTimeSpan
+                        Expect.equal r (Error ApiError.Timeout) "no answer in time is a timeout"
+                    })
 
             testT "genesis" (fun () ->
                 task {

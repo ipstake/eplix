@@ -118,7 +118,7 @@ groups:
       - alert: EplixSignerErrors
         expr: |
           sum by (instance, backend) (increase(eplix_sign_requests_total{job="eplix",outcome="failed"}[10m]))
-          / sum by (instance, backend) (increase(eplix_sign_requests_total{job="eplix"}[10m])) > 0.05
+          / sum by (instance, backend) (increase(eplix_sign_requests_total{job="eplix",outcome!="stopped"}[10m])) > 0.05
         for: 5m
         labels: {severity: warning}
         annotations:

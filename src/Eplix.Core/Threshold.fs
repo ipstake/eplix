@@ -1027,11 +1027,23 @@ module Threshold =
                                                         | e -> return Failed(Internal e.Message)
                                                     }
 
-                                                Metrics.signed
-                                                    x.Backend.Name
-                                                    req.Duty.Kind
-                                                    o
-                                                    (Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds)
+                                                // A call that ended without a signature because the
+                                                // group stopped it (it had its result), not by the
+                                                // member's own timer or the caller, is not the member's
+                                                // failure.
+                                                match o with
+                                                | Failed _ when
+                                                    stopOthers.IsCancellationRequested
+                                                    && not own.IsCancellationRequested
+                                                    && not ct.IsCancellationRequested
+                                                    ->
+                                                    Metrics.stopped x.Backend.Name req.Duty.Kind
+                                                | _ ->
+                                                    Metrics.signed
+                                                        x.Backend.Name
+                                                        req.Duty.Kind
+                                                        o
+                                                        (Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds)
 
                                                 return o
                                             finally
