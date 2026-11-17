@@ -36,26 +36,19 @@ git clone https://github.com/ipstake/eplix.git && cd eplix
 scripts/publish-aot.sh             # artifacts/publish/linux-x64/eplix and libblst.so
 ```
 
-A minimal `eplix.json` for one beacon node on Hoodi:
-
-```json
-{
-  "beacon_nodes": [ "http://127.0.0.1:5052" ],
-  "network": "hoodi",
-  "data_dir": "data",
-  "fee_recipient": "0x0000000000000000000000000000000000000000"
-}
-```
-
-Import the keys with their slashing history, check the setup, then run:
+Stop the client that ran the keys before, and keep it stopped. Then import the keys with their slashing history, check the setup, and run. This uses one beacon node on Hoodi (bash):
 
 ```sh
-eplix import --config eplix.json --from validator_keys --password-file password.txt --slashing-protection interchange.json
-eplix check --config eplix.json
-eplix run --config eplix.json
+eplix=artifacts/publish/linux-x64/eplix
+opts="--network hoodi --data-dir data --beacon-nodes http://127.0.0.1:5052 --fee-recipient 0x..."
+$eplix import $opts --from validator_keys --password-file password.txt --slashing-protection interchange.json
+$eplix check $opts
+$eplix run $opts
 ```
 
-A key with no history at all (a new key) takes `--no-signing-history` instead of `--slashing-protection`. Each key waits out the doppelganger check, 2 to 3 epochs, before it signs. [Migrating keys](docs/migration.md) covers keys from other clients.
+Every setting can be a flag, an environment variable or a key in a JSON config file ([Configuration](docs/configuration.md)).
+
+A key with no history at all (a new key) takes `--no-signing-history` instead of `--slashing-protection`. Each start waits out the doppelganger check and misses 3 to 4 epochs of duties with the defaults. [Migrating keys](docs/migration.md) covers keys from other clients.
 
 ## Documentation
 

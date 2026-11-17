@@ -16,7 +16,18 @@ Dots separate levels in a flag, `__` in a variable. `true`, `false`, `null` and 
 
 ## Example config file
 
-A config file (every key can also come from a flag or an environment variable, see above):
+A minimal file, the same setup as the quick start in the README:
+
+```json
+{
+  "beacon_nodes": [ "http://127.0.0.1:5052" ],
+  "network": "hoodi",
+  "data_dir": "data",
+  "fee_recipient": "0x..."
+}
+```
+
+Run with `eplix run --config eplix.json`. A fuller example (every key can also come from a flag or an environment variable, see above):
 
 ```json
 {

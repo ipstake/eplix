@@ -22,18 +22,18 @@ let private usage =
   eplix version
   eplix run [--config <file>] [settings]
   eplix check [--config <file>] [settings]    check the config and the keystores, then exit
-  eplix slashing import --config <file> --file <eip3076.json>
-  eplix slashing export --config <file> --file <out.json> [--pubkey <0x...>]...
-  eplix import --config <file> --from <dir> [--layout <name>] [--password-file <file or dir>]
+  eplix slashing import [--config <file>] [settings] --file <eip3076.json>
+  eplix slashing export [--config <file>] [settings] --file <out.json> [--pubkey <0x...>]...
+  eplix import [--config <file>] [settings] --from <dir> [--layout <name>] [--password-file <file or dir>]
                [--slashing-protection <eip3076.json> | --no-signing-history]
                                               copy keystores from another client's directory;
                                               layouts: auto, deposit-cli, teku, lighthouse, nimbus, lodestar, plain;
                                               --no-signing-history: no history exists (a new key, or a
                                               lost setup); writes a floor record at the epoch now + 1
-  eplix exit --config <file> (--pubkey <0x...>[,<0x...>]... | --all) [--epoch <n>] [--save-dir <dir>]
+  eplix exit [--config <file>] [settings] (--pubkey <0x...>[,<0x...>]... | --all) [--epoch <n>] [--save-dir <dir>]
              [--submit true]                  sign voluntary exits; prints each, or writes <dir>/<0xpubkey>.json
                                               (mode 0600); submits only with --submit true
-  eplix switch [stop | resume | pause <duty>... | resume-duty <duty>... | status] --config <file>
+  eplix switch [stop | resume | pause <duty>... | resume-duty <duty>... | status] [--config <file>] [settings]
                                               emergency switches of a running VC (<data dir>/switches.json):
                                               stop signing (exits still sign), or pause duty kinds such as
                                               attestation, block, sync_committee_message
