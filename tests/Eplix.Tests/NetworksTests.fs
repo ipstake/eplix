@@ -86,7 +86,7 @@ let private settingsOf (r: Result<ConfigSources.Setting list, string list>) =
     | Error e -> failwith (String.Join("; ", e))
 
 /// Published configs pinned at a date, as files: tests/fixtures/networks/<network>.<source>.yaml.
-/// Refresh them from their sources before each release and each fork (README, "Network presets").
+/// Refresh them from their sources before each release and each fork (docs/building.md, "Network presets").
 let private pinnedFiles () =
     let dir = IO.Path.Combine(Eplix.Tests.TestUtil.fixtures, "networks")
 
