@@ -1,6 +1,6 @@
 # Eplix design
 
-The design of Eplix, an Ethereum validator client in F#. It was written before the code and is kept as the reference for why the code is shaped as it is; `README.md` describes what the code does today.
+The design of Eplix, an Ethereum validator client in F#. It was written before the code and is kept as the reference for why the code is shaped as it is; `README.md` and the other files in `docs/` describe what the code does today.
 
 Projects are `Eplix.*` and the binary is `eplix`. This document says "the VC" for the validator client; where it names `Vc.*` projects or the `vc` binary, read `Eplix.*` and `eplix`. "TEE signers" are the signers of the tee-signer project: runners in a trusted execution environment (Azure confidential containers, AWS Nitro Enclaves, GCP Confidential Space) that each hold a whole key or one share of a key.
 
@@ -563,7 +563,7 @@ The `builder_legacy` module, off by default, runs the pre-Gloas builder flow of 
 | Next | .NET 11 is at RC 2 (2026-10-13, go-live), STS; try it at GA, keep 10 as the floor | same |
 | Language | F# 10 (with .NET 10) | dotnet/fsharp `docs/release-notes/.Language/10.0.md` |
 | Later | F# 11.2 adds runtime async; planned as default for the .NET 11.0.200 SDK | dotnet/fsharp `LanguageFeatures.fs` on main |
-| x64 CPU | x86-64-v2 plus AVX (Intel Sandy Bridge, AMD Bulldozer or Jaguar, any Zen, and newer); AVX2 used where present | block root hashing with 8 lanes; README, "CPU" |
+| x64 CPU | x86-64-v2 plus AVX (Intel Sandy Bridge, AMD Bulldozer or Jaguar, any Zen, and newer); AVX2 used where present | block root hashing with 8 lanes; `docs/building.md`, "CPU" |
 
 F# 10 features this design uses: tail calls in computation expressions, type annotations on `let!` and `and!` without parentheses, `ValueOption` with `[<Struct>]` for optional parameters, scoped `#nowarn` and `#warnon`. Runtime async in .NET 11 and F# 11.2 should cut the allocations of `task { }` state machines; the VC adopts it once both are GA and measured.
 

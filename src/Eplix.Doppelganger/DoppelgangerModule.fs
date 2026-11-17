@@ -267,7 +267,7 @@ type Checker
                             $"key {k.Key.Short}: doppelganger check{again}; it waits until the VC restarts, as the beacon nodes disagreed on a key before (see the DOPPELGANGER? error)"
                     elif k.Index.IsSome then
                         log.Info
-                            $"key {k.Key.Short}: doppelganger check{again}, signs from the last slot of epoch {e + settings.Epochs + 1UL} if no beacon node sees it live before"
+                            $"key {k.Key.Short}: doppelganger check{again}, start epoch: {e}, sign epoch: {e + settings.Epochs + 1UL} (from its last slot) if no beacon node sees it live before"
                     else
                         log.Info
                             $"key {k.Key.Short}: doppelganger check{again}; the beacon node has no index for it yet, so the {settings.Epochs} clean epochs count from when it has one"
