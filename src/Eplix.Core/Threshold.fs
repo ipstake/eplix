@@ -974,12 +974,9 @@ module Threshold =
             task {
                 let results =
                     Channel.CreateBounded<struct (int * SignOutcome)>(BoundedChannelOptions(n, SingleReader = true))
-                // Slashable kinds, PTC votes and envelopes are never cancelled once sent: every
-                // member records the message, so the members' marks stay level.
-                // Other kinds stop when m are in.
-                let keepStragglers = req.Duty.KeepsStragglers
-                // Not disposed: member tasks may still hold registrations on it after this returns.
-                let stopOthers = new CancellationTokenSource()
+                // No member call is cancelled once sent, by the group or the caller: each ends with
+                // its answer or its own timeout. Every member records the message, so the members'
+                // marks stay level, and whatever ends a call is the member's own answer.
                 let now = time.GetUtcNow()
 
                 for i in 0 .. n - 1 do
@@ -996,54 +993,31 @@ module Threshold =
                                         // The deadline is on the VC's clock; the member timer is a network
                                         // timeout, so it runs on the wall clock (also under a test clock).
                                         use own = new CancellationTokenSource(timeout)
-
-                                        use linked =
-                                            if keepStragglers then
-                                                CancellationTokenSource.CreateLinkedTokenSource(own.Token)
-                                            else
-                                                CancellationTokenSource.CreateLinkedTokenSource(
-                                                    own.Token,
-                                                    stopOthers.Token,
-                                                    ct
-                                                )
-
                                         let started = Diagnostics.Stopwatch.GetTimestamp()
-                                        let! entered = gates[i].Enter(req.Priority, linked.Token)
+                                        let! entered = gates[i].Enter(req.Priority, own.Token)
 
-                                        if not entered || linked.IsCancellationRequested then
+                                        if not entered || own.IsCancellationRequested then
                                             if entered then
                                                 gates[i].Leave()
-                                            // Dropped from the member's queue: m were in, or no time left.
+                                            // Dropped from the member's queue: no time left.
                                             return Failed SignFailure.Timeout
                                         else
                                             try
                                                 let! o =
                                                     task {
                                                         try
-                                                            return! x.Backend.Sign req linked.Token
+                                                            return! x.Backend.Sign req own.Token
                                                         with
                                                         | :? OperationCanceledException ->
                                                             return Failed SignFailure.Timeout
                                                         | e -> return Failed(Internal e.Message)
                                                     }
 
-                                                // A call that ended without a signature because the
-                                                // group stopped it (it had its result), not by the
-                                                // member's own timer or the caller, is not the member's
-                                                // failure.
-                                                match o with
-                                                | Failed _ when
-                                                    stopOthers.IsCancellationRequested
-                                                    && not own.IsCancellationRequested
-                                                    && not ct.IsCancellationRequested
-                                                    ->
-                                                    Metrics.stopped x.Backend.Name req.Duty.Kind
-                                                | _ ->
-                                                    Metrics.signed
-                                                        x.Backend.Name
-                                                        req.Duty.Kind
-                                                        o
-                                                        (Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds)
+                                                Metrics.signed
+                                                    x.Backend.Name
+                                                    req.Duty.Kind
+                                                    o
+                                                    (Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds)
 
                                                 return o
                                             finally
@@ -1058,9 +1032,6 @@ module Threshold =
                             match outcome with
                             | Partial _
                             | Signed _ -> ()
-                            // A kind that stops its members once the result is in: a failure after the
-                            // result (m were in) or after the caller gave up is most likely the stop.
-                            | _ when not keepStragglers && (late || ct.IsCancellationRequested) -> ()
                             // A floor wait is expected; not ready with no epoch (no trusted time) is a failure line.
                             | Refused(Refusal.NotReadyUntil(ValueSome until)) -> memberFloor i req until
                             | _ -> memberFailed i req outcome late
@@ -1245,11 +1216,8 @@ module Threshold =
                                     | None, None, [], _ :: _ -> Refused(mergeRefusals others)
                                     | None, None, [], [] -> Failed(mergeFailures [ for struct (_, f) in failures -> f ])
                                 )
-                // Answers from now on are late; members that keep no stragglers are stopped.
+                // Answers from now on are late.
                 results.Writer.TryComplete() |> ignore
-
-                if not keepStragglers then
-                    stopOthers.Cancel()
 
                 return
                     match result with

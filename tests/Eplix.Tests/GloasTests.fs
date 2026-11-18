@@ -366,13 +366,10 @@ let tests =
                     ar.SigningRoot
                     (Signing.computeSigningRoot (Codec.hashBuilderRequestAuth auth) authDomain)
                     "builder request auth"
-                // None of them is slashable; PTC votes and envelopes keep their stragglers.
+                // None of them is slashable.
                 for d in [ r.Duty; pr.Duty; er.Duty; ar.Duty ] do
                     Expect.isFalse d.IsSlashable $"{d.Kind} is not slashable"
 
-                Expect.isTrue r.Duty.KeepsStragglers "PTC votes reach every threshold member"
-                Expect.isTrue er.Duty.KeepsStragglers "envelopes reach every threshold member"
-                Expect.isFalse pr.Duty.KeepsStragglers "preferences stop at m"
                 // Gloas due times.
                 Expect.equal (spec.AttestationDue 16UL) (TimeSpan.FromSeconds 1.5) "attestation at 25%"
                 Expect.equal (spec.AggregateDueAt 16UL) (TimeSpan.FromSeconds 3.0) "aggregate at 50%"

@@ -172,7 +172,7 @@ A TEE runner's HEALTH answer reports `mark_log_lost`: the runner lost its slashi
 
 Over 5% of the requests to one backend failed for 5 minutes: timeouts, refused connections, TLS failures.
 
-The share counts the requests that got an answer or failed. A threshold group stops its slower members once it has its result, for every kind except votes, blocks, PTC votes and envelopes; those requests count as `outcome="stopped"` in `eplix_sign_requests_total` and are left out of this alert. Many stopped requests for one member only mean it answers later than the others.
+The share counts the requests that got an answer or failed. A threshold group never cancels its slower members: each request ends with the member's answer or its own timeout (`timeout_ms`), also after the group has its result. A member that answers slower than its timeout therefore counts failed requests, and the VC logs each new kind of failure once per member per 5 minutes. Versions before this one counted requests the group cancelled as `outcome="stopped"`; the alert leaves those out.
 
 - Check the signer processes and the network between the VC and the signers.
 - For threshold groups, the VC still signs while a threshold of members answers; the alert warns before that margin is gone.

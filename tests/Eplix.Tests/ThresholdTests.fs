@@ -228,6 +228,66 @@ let verifies (key: PubKey) (req: SignRequest) (o: SignOutcome) =
     | Signed s -> Bls.verify (ReadOnlySpan key.Bytes) (ReadOnlySpan req.SigningRoot.Bytes) (ReadOnlySpan s.Bytes)
     | _ -> false
 
+/// A 2-of-n group over the given backends, each with its own budget, logging to `log`.
+let budgeted (log: Log) (members: (Backend * TimeSpan) list) =
+    let b =
+        Threshold.create
+            "g"
+            2
+            [
+                for (x, budget), i in List.zip members [ 1UL .. uint64 members.Length ] ->
+                    {
+                        Backend = x
+                        Index = i
+                        Budget = budget
+                    }
+            ]
+            TimeProvider.System
+            log
+
+    b.Keys CancellationToken.None |> fun t -> t.Wait()
+    b
+
+/// Lines that say a member did not sign.
+let memberLines (lines: Collections.Concurrent.ConcurrentQueue<string>) =
+    lines |> Seq.filter (fun l -> l.Contains "did not sign") |> List.ofSeq
+
+/// Waits up to 10 s until `count` reaches `n`, then 200 ms for the member tasks to write.
+let waitCount (count: int ref) (n: int) =
+    task {
+        let sw = Diagnostics.Stopwatch.StartNew()
+
+        while Volatile.Read &count.contents < n && sw.Elapsed < TimeSpan.FromSeconds 10.0 do
+            do! Task.Delay 10
+
+        do! Task.Delay 200
+        Expect.equal (Volatile.Read &count.contents) n "member calls ended"
+    }
+
+/// A member call that waits for the group to cancel it, then counts itself and answers `fail`.
+let onCancel (ended: int ref) (fail: unit -> SignOutcome) =
+    fun (_: SignRequest) (ct: CancellationToken) ->
+        task {
+            try
+                try
+                    do! Task.Delay(TimeSpan.FromSeconds 30.0, ct)
+                    return Failed(Internal "not cancelled")
+                with :? OperationCanceledException ->
+                    return fail ()
+            finally
+                Interlocked.Increment &ended.contents |> ignore
+        }
+
+/// A member call that ignores its token, waits for `release`, then counts itself and answers.
+let onRelease (ended: int ref) (release: Task<SignOutcome>) =
+    fun (_: SignRequest) (_: CancellationToken) ->
+        task {
+            try
+                return! release
+            finally
+                Interlocked.Increment &ended.contents |> ignore
+        }
+
 [<Tests>]
 let tests =
     testList
@@ -709,7 +769,7 @@ let tests =
                     | x -> failtestf "expected a transport failure, got %s" x.Describe
                 })
 
-            testT "slashable kinds let stragglers finish; other kinds cancel them" (fun () ->
+            testT "every kind lets stragglers finish" (fun () ->
                 task {
                     let secret, shares = shamir 15 2 [ 1UL; 2UL; 3UL ]
                     let key = pk secret
@@ -730,14 +790,23 @@ let tests =
                     let req = request key attestation
                     let! o = (group ms 2).Sign req CancellationToken.None
                     Expect.isTrue (verifies key req o) "attestation signed by two"
-                    do! Task.Delay 600
+
+                    let finished (x: FakeMember) =
+                        task {
+                            let sw = Diagnostics.Stopwatch.StartNew()
+
+                            while x.Finished + x.Cancelled = 0 && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
+                                do! Task.Delay 10
+                        }
+
+                    do! finished ms[2]
                     Expect.equal ms[2].Finished 1 "the slow member still signed the attestation"
                     let ms2 = mk ()
                     let req2 = request key (Duty.RandaoReveal 1UL)
                     let! o2 = (group ms2 2).Sign req2 CancellationToken.None
                     Expect.isTrue (verifies key req2 o2) "RANDAO signed by two"
-                    do! Task.Delay 600
-                    Expect.equal ms2[2].Cancelled 1 "the slow member's RANDAO request was cancelled"
+                    do! finished ms2[2]
+                    Expect.equal ms2[2].Finished 1 "the slow member still signed the RANDAO reveal"
                 })
 
             testPropN
@@ -939,77 +1008,79 @@ let tests =
                     Expect.equal g.InFlight 0 "every slot back"
                 })
 
-            testT
-                "a busy member's queued non-slashable request is dropped once m are in; votes still reach it"
-                (fun () ->
-                    task {
-                        let secret, shares = shamir 36 2 [ 1UL; 2UL; 3UL ]
-                        let key = pk secret
+            testT "a busy member's queued requests still reach it after the result, one after the other" (fun () ->
+                task {
+                    let secret, shares = shamir 36 2 [ 1UL; 2UL; 3UL ]
+                    let key = pk secret
 
-                        let one (x: FakeMember) =
-                            { x.Backend with
-                                Capabilities =
-                                    { x.Backend.Capabilities with
-                                        MaxInFlight = 1
-                                    }
-                            }
+                    let one (x: FakeMember) =
+                        { x.Backend with
+                            Capabilities =
+                                { x.Backend.Capabilities with
+                                    MaxInFlight = 1
+                                }
+                        }
 
-                        let mk (slow: float) =
-                            [
-                                for id, s in shares ->
-                                    FakeMember(
-                                        id,
-                                        key,
-                                        s,
-                                        partialOf id s,
-                                        TimeSpan.FromMilliseconds(if id = 3UL then slow else 10.0)
-                                    )
-                            ]
+                    let mk (slow: float) =
+                        [
+                            for id, s in shares ->
+                                FakeMember(
+                                    id,
+                                    key,
+                                    s,
+                                    partialOf id s,
+                                    TimeSpan.FromMilliseconds(if id = 3UL then slow else 10.0)
+                                )
+                        ]
 
-                        let ms = mk 200.0
-                        let b = groupAt [ for x, i in List.zip ms [ 1UL; 2UL; 3UL ] -> one x, i ] 2
-                        // A vote holds the slow member's only slot; two RANDAO requests queue behind it.
-                        let vote = request key attestation
-                        let voteTask = b.Sign vote CancellationToken.None
-                        do! Task.Delay 30
-                        let reqs = [ for e in 1UL .. 2UL -> request key (Duty.RandaoReveal e) ]
-                        let! outs = reqs |> List.map (fun r -> b.Sign r CancellationToken.None) |> Task.WhenAll
+                    let ms = mk 200.0
+                    let b = groupAt [ for x, i in List.zip ms [ 1UL; 2UL; 3UL ] -> one x, i ] 2
+                    // A vote holds the slow member's only slot; two RANDAO requests queue behind it.
+                    let vote = request key attestation
+                    let voteTask = b.Sign vote CancellationToken.None
+                    do! Task.Delay 30
+                    let reqs = [ for e in 1UL .. 2UL -> request key (Duty.RandaoReveal e) ]
+                    let! outs = reqs |> List.map (fun r -> b.Sign r CancellationToken.None) |> Task.WhenAll
 
-                        for r, o in List.zip reqs (List.ofArray outs) do
-                            Expect.isTrue (verifies key r o) $"RANDAO signed: {o.Describe}"
+                    for r, o in List.zip reqs (List.ofArray outs) do
+                        Expect.isTrue (verifies key r o) $"RANDAO signed: {o.Describe}"
 
-                        let! v = voteTask
-                        Expect.isTrue (verifies key vote v) "vote signed"
-                        do! Task.Delay 400
+                    let! v = voteTask
+                    Expect.isTrue (verifies key vote v) "vote signed"
+                    // Three 200 ms signatures one after the other; wait for them (5 s at most).
+                    let sw = Diagnostics.Stopwatch.StartNew()
 
-                        Expect.equal
-                            (ms[2].Finished, ms[2].Cancelled)
-                            (1, 0)
-                            "only the vote reached the slow member; the queued RANDAO requests were dropped"
-                        // Votes keep their stragglers: all three reach the slow member, one after the other.
-                        let ms2 = mk 100.0
-                        let b2 = groupAt [ for x, i in List.zip ms2 [ 1UL; 2UL; 3UL ] -> one x, i ] 2
+                    while ms[2].Finished < 3 && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
+                        do! Task.Delay 20
 
-                        let data =
-                            match attestation with
-                            | Duty.Attestation d -> d
-                            | _ -> failwith "an attestation"
+                    Expect.equal
+                        (ms[2].Finished, ms[2].Cancelled)
+                        (3, 0)
+                        "the vote and both queued RANDAO requests reached the slow member"
+                    // Votes alone: all three reach the slow member, one after the other.
+                    let ms2 = mk 100.0
+                    let b2 = groupAt [ for x, i in List.zip ms2 [ 1UL; 2UL; 3UL ] -> one x, i ] 2
 
-                        let votes =
-                            [
-                                for slot in 1UL .. 3UL -> request key (Duty.Attestation { data with Slot = slot })
-                            ]
+                    let data =
+                        match attestation with
+                        | Duty.Attestation d -> d
+                        | _ -> failwith "an attestation"
 
-                        let! _ = votes |> List.map (fun r -> b2.Sign r CancellationToken.None) |> Task.WhenAll
-                        // Three 100 ms signatures one after the other; under load they take longer, so wait
-                        // for them (5 s at most) instead of a fixed 600 ms.
-                        let sw = Diagnostics.Stopwatch.StartNew()
+                    let votes =
+                        [
+                            for slot in 1UL .. 3UL -> request key (Duty.Attestation { data with Slot = slot })
+                        ]
 
-                        while ms2[2].Finished < 3 && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
-                            do! Task.Delay 20
+                    let! _ = votes |> List.map (fun r -> b2.Sign r CancellationToken.None) |> Task.WhenAll
+                    // Three 100 ms signatures one after the other; under load they take longer, so wait
+                    // for them (5 s at most) instead of a fixed 600 ms.
+                    let sw = Diagnostics.Stopwatch.StartNew()
 
-                        Expect.equal ms2[2].Finished 3 "every vote reached the slow member"
-                    })
+                    while ms2[2].Finished < 3 && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
+                        do! Task.Delay 20
+
+                    Expect.equal ms2[2].Finished 3 "every vote reached the slow member"
+                })
 
             testT
                 "members in their restart floor: degraded, then not ready until the floor ends, then up again"
@@ -1522,7 +1593,7 @@ let tests =
                     expectWarn lines
                 })
 
-            testT "a member stopped because m were in gets no failure line" (fun () ->
+            testT "a member that signs after the result gets no line" (fun () ->
                 task {
                     let secret, shares = shamir 44 2 [ 1UL; 2UL; 3UL ]
                     let key = pk secret
@@ -1545,14 +1616,269 @@ let tests =
                     let req = request key (Duty.RandaoReveal 1UL)
                     let! o = b.Sign req CancellationToken.None
                     Expect.isTrue (verifies key req o) "signed by two"
-                    do! Task.Delay 500
-                    Expect.equal (fst ms[2]).Cancelled 1 "member 3 was stopped"
+                    let sw = Diagnostics.Stopwatch.StartNew()
+
+                    while (fst ms[2]).Finished = 0 && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
+                        do! Task.Delay 10
+
+                    do! Task.Delay 100
+                    Expect.equal (fst ms[2]).Finished 1 "member 3 signed after the result"
 
                     Expect.isEmpty
                         (lines |> Seq.filter (fun l -> l.Contains "did not sign") |> List.ofSeq)
                         "no failure line"
 
                     Expect.isEmpty lines "no line at any level"
+                })
+
+            testT "a member's failure before the result is logged, once per window" (fun () ->
+                task {
+                    let secret, shares = shamir 45 2 [ 1UL; 2UL; 3UL ]
+                    let key = pk secret
+                    let time = FakeTimeProvider(DateTimeOffset.UtcNow)
+                    let log, lines = Log.memory ()
+
+                    // Every member answers at once, so all three answers are in before the group
+                    // reads any: m3's refusal comes before the result.
+                    let ms =
+                        [
+                            for id, s in shares ->
+                                let x = FakeMember(id, key, s, partialOf id s, TimeSpan.Zero)
+
+                                if id = 3UL then
+                                    { x.Backend with
+                                        Name = "m3"
+                                        Sign =
+                                            fun _ _ ->
+                                                Task.FromResult(Failed(Internal "tee-3: STORAGE: store\nhanded over"))
+                                    },
+                                    TimeSpan.FromSeconds 5.0
+                                else
+                                    { x.Backend with Name = $"m{id}" }, TimeSpan.FromSeconds 5.0
+                        ]
+
+                    let b =
+                        Threshold.create
+                            "g"
+                            2
+                            [
+                                for (x, budget), i in List.zip ms [ 1UL; 2UL; 3UL ] ->
+                                    {
+                                        Backend = x
+                                        Index = i
+                                        Budget = budget
+                                    }
+                            ]
+                            time
+                            log
+
+                    let! _ = b.Keys CancellationToken.None
+
+                    let signRandao () =
+                        task {
+                            let req =
+                                { request key (Duty.RandaoReveal 1UL) with
+                                    Deadline = time.GetUtcNow().AddSeconds 10.0
+                                }
+
+                            let! o = b.Sign req CancellationToken.None
+                            Expect.isTrue (verifies key req o) $"the group still signs: {o.Describe}"
+                        }
+
+                    for _ in 1..3 do
+                        do! signRandao ()
+
+                    Expect.equal (memberLines lines).Length 1 "one line for three failures"
+
+                    Expect.stringContains
+                        (memberLines lines).Head
+                        "g: member m3 did not sign the randao_reveal of"
+                        "names member and kind"
+
+                    Expect.stringContains
+                        (memberLines lines).Head
+                        "failed: internal: tee-3: STORAGE: store handed over"
+                        "the cleaned reason"
+
+                    time.Advance Threshold.memberLineWindow
+                    do! signRandao ()
+                    Expect.equal (memberLines lines).Length 2 "a line again after the window"
+
+                    Expect.stringContains
+                        (List.last (memberLines lines))
+                        "; 2 more internal answers since"
+                        "the count of lines not written"
+
+                    expectWarn lines
+                })
+
+            testT "a member's refusal after the result is logged, marked late" (fun () ->
+                task {
+                    let secret, shares = shamir 55 2 [ 1UL; 2UL; 3UL ]
+                    let key = pk secret
+                    let log, lines = Log.memory ()
+                    let ended = ref 0
+
+                    let release = TaskCompletionSource<SignOutcome>(TaskCreationOptions.RunContinuationsAsynchronously)
+
+                    let ms =
+                        [
+                            for id, s in shares ->
+                                let x = FakeMember(id, key, s, partialOf id s, TimeSpan.Zero)
+
+                                if id = 3UL then
+                                    { x.Backend with
+                                        Name = "m3"
+                                        Sign = onRelease ended release.Task
+                                    },
+                                    TimeSpan.FromSeconds 30.0
+                                else
+                                    { x.Backend with Name = $"m{id}" }, TimeSpan.FromSeconds 30.0
+                        ]
+
+                    let b = budgeted log ms
+
+                    for duty in [ Duty.RandaoReveal 1UL; attestation ] do
+                        let req = request key duty
+                        let! o = b.Sign req CancellationToken.None
+                        Expect.isTrue (verifies key req o) "signed by two"
+
+                    // Both requests wait on the same answer, which comes after both results.
+                    release.SetResult(Failed(Internal "tee-3: STORAGE: store handed over"))
+                    do! waitCount ended 2
+                    let ls = memberLines lines
+                    Expect.equal ls.Length 2 "one line per duty kind"
+
+                    for l in ls do
+                        Expect.stringContains
+                            l
+                            "failed: internal: tee-3: STORAGE: store handed over, after the group's result"
+                            "the late refusal"
+
+                    expectWarn lines
+                })
+
+            testT "a member's transport failure or exception after the result is logged" (fun () ->
+                task {
+                    let secret, shares = shamir 53 2 [ 1UL; 2UL; 3UL; 4UL ]
+                    let key = pk secret
+                    let log, lines = Log.memory ()
+                    let ended = ref 0
+
+                    let reset = TaskCompletionSource<SignOutcome>(TaskCreationOptions.RunContinuationsAsynchronously)
+
+                    let thrown = TaskCompletionSource<SignOutcome>(TaskCreationOptions.RunContinuationsAsynchronously)
+
+                    let ms =
+                        [
+                            for id, s in shares ->
+                                let x = FakeMember(id, key, s, partialOf id s, TimeSpan.Zero)
+
+                                match id with
+                                | 3UL ->
+                                    { x.Backend with
+                                        Name = "m3"
+                                        Sign = onRelease ended reset.Task
+                                    },
+                                    TimeSpan.FromSeconds 30.0
+                                | 4UL ->
+                                    { x.Backend with
+                                        Name = "m4"
+                                        Sign = onRelease ended thrown.Task
+                                    },
+                                    TimeSpan.FromSeconds 30.0
+                                | _ -> { x.Backend with Name = $"m{id}" }, TimeSpan.FromSeconds 30.0
+                        ]
+
+                    let b = budgeted log ms
+                    let req = request key (Duty.RandaoReveal 1UL)
+                    let! o = b.Sign req CancellationToken.None
+                    Expect.isTrue (verifies key req o) "signed by two"
+                    reset.SetResult(Failed(Transport "connection reset"))
+                    thrown.SetException(IO.IOException "socket closed")
+                    do! waitCount ended 2
+                    let line name = memberLines lines |> List.tryFind (fun l -> l.Contains $"member {name} ")
+
+                    Expect.stringContains
+                        (defaultArg (line "m3") "")
+                        "errored: transport: connection reset, after the group's result"
+                        "the transport failure"
+
+                    Expect.stringContains
+                        (defaultArg (line "m4") "")
+                        "failed: internal: socket closed, after the group's result"
+                        "the exception"
+                })
+
+            testT "a member's own timeout after the result is logged as a timeout" (fun () ->
+                task {
+                    let secret, shares = shamir 54 2 [ 1UL; 2UL; 3UL ]
+                    let key = pk secret
+                    let log, lines = Log.memory ()
+                    let ended = ref 0
+
+                    // m3 answers only when its token ends: its own 500 ms timer.
+                    let ms =
+                        [
+                            for id, s in shares ->
+                                let x = FakeMember(id, key, s, partialOf id s, TimeSpan.Zero)
+
+                                if id = 3UL then
+                                    { x.Backend with
+                                        Name = "m3"
+                                        Sign = onCancel ended (fun () -> Failed SignFailure.Timeout)
+                                    },
+                                    TimeSpan.FromMilliseconds 500.0
+                                else
+                                    { x.Backend with Name = $"m{id}" }, TimeSpan.FromSeconds 30.0
+                        ]
+
+                    let b = budgeted log ms
+                    let req = request key (Duty.RandaoReveal 1UL)
+                    let! o = b.Sign req CancellationToken.None
+                    Expect.isTrue (verifies key req o) "signed by two"
+                    do! waitCount ended 1
+
+                    match memberLines lines with
+                    | [ l ] ->
+                        Expect.stringContains l "member m3 did not sign" "names m3"
+                        Expect.stringContains l "errored: timed out, after the group's result" "a late timeout"
+                    | ls -> failtestf "one line expected: %A" ls
+                })
+
+            testT "the caller giving up does not cancel the members" (fun () ->
+                task {
+                    let secret, shares = shamir 51 2 [ 1UL; 2UL; 3UL ]
+                    let key = pk secret
+                    let log, lines = Log.memory ()
+                    let ended = ref 0
+
+                    // Every member answers only when its token ends; their own timers end at 1 s.
+                    let ms =
+                        [
+                            for id, s in shares ->
+                                let x = FakeMember(id, key, s, partialOf id s, TimeSpan.Zero)
+
+                                { x.Backend with
+                                    Name = $"m{id}"
+                                    Sign = onCancel ended (fun () -> Failed SignFailure.Timeout)
+                                },
+                                TimeSpan.FromSeconds 1.0
+                        ]
+
+                    let b = budgeted log ms
+                    use cts = new CancellationTokenSource()
+                    let signing = b.Sign (request key (Duty.RandaoReveal 1UL)) cts.Token
+                    cts.Cancel()
+                    let! o = signing
+                    Expect.equal o (Failed SignFailure.Timeout) "the caller gave up"
+                    Expect.equal (Volatile.Read &ended.contents) 0 "no member call ended with the caller"
+                    do! waitCount ended 3
+                    let ls = memberLines lines
+                    Expect.equal ls.Length 3 "each member's own timeout is logged"
+
+                    for l in ls do
+                        Expect.stringContains l "errored: timed out, after the group's result" "a late timeout"
                 })
 
             test "cleanReason: one line, at most 200 units, whole surrogate pairs" {

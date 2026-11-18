@@ -95,16 +95,6 @@ type Duty =
         | Block _ -> true
         | _ -> false
 
-    /// Kinds whose requests to threshold members are never cancelled once sent, so every member
-    /// records the message: the slashable kinds, PTC votes and envelopes.
-    member this.KeepsStragglers =
-        match this with
-        | Attestation _
-        | Block _
-        | PayloadAttestation _
-        | PayloadEnvelope _ -> true
-        | _ -> false
-
 /// The fork and genesis validators root a request is signed under.
 type ForkInfo =
     {

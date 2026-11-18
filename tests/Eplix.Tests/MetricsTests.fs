@@ -579,7 +579,7 @@ let tests =
 
             // Sequenced: the member timers run on the wall clock, which a loaded thread pool delays.
             testSequenced
-            <| testT "sign requests: a group member stopped after the result counts as stopped, not failed" (fun () ->
+            <| testT "sign requests: a group member that answers after the result counts by its answer" (fun () ->
                 task {
                     use collector = new Collector([ Metrics.MeterName ])
                     // Backend names of this test only: the meter is shared with the other tests.
@@ -622,7 +622,7 @@ let tests =
                         b.Keys CancellationToken.None |> fun t -> t.Wait()
                         b
 
-                    // RANDAO reveals stop the slower members once 2 partials are in.
+                    // The group returns once 2 partials are in; the third member still answers.
                     let req = ThresholdTests.request key (Duty.RandaoReveal 1UL)
 
                     let expectSigned (o: SignOutcome) =
@@ -637,19 +637,32 @@ let tests =
                             [
                                 "fast1", partial 0, TimeSpan.Zero, budget
                                 "fast2", partial 1, TimeSpan.Zero, budget
-                                "slow", partial 2, TimeSpan.FromSeconds 5.0, budget
+                                "slow", partial 2, TimeSpan.FromMilliseconds 300.0, budget
                             ]
 
                     let! o = g1.Sign req CancellationToken.None
                     expectSigned o
-                    // The stopped member counts once its call has ended.
+
+                    let g1b =
+                        group
+                            [
+                                "fast3", partial 0, TimeSpan.Zero, budget
+                                "fast4", partial 1, TimeSpan.Zero, budget
+                                "slowerr", failure, TimeSpan.FromMilliseconds 300.0, budget
+                            ]
+
+                    let! o = g1b.Sign req CancellationToken.None
+                    expectSigned o
+                    // The slow members count once their calls have ended.
                     let sw = Diagnostics.Stopwatch.StartNew()
 
-                    while count "slow" "stopped" + count "slow" "failed" < 1.0 && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
+                    while (count "slow" "signed" < 1.0 || count "slowerr" "failed" < 1.0)
+                          && sw.Elapsed < TimeSpan.FromSeconds 5.0 do
                         do! Task.Delay 10
 
-                    Expect.equal (count "slow" "stopped") 1.0 "the member stopped after the result counts as stopped"
-                    Expect.equal (count "slow" "failed") 0.0 "and not as failed"
+                    Expect.equal (count "slow" "signed") 1.0 "a member that signs after the result counts as signed"
+                    Expect.equal (count "slowerr" "failed") 1.0 "an error after the result counts as failed"
+                    Expect.equal (count "slow" "stopped") 0.0 "no outcome stopped"
                     Expect.equal (count "fast1" "signed") 1.0 "a member that signed counts as signed"
 
                     // An error before the result, and a member's own timeout before the result, stay failed.
@@ -677,6 +690,5 @@ let tests =
                     expectSigned o
 
                     Expect.equal (count "late" "failed") 1.0 "a member timeout before the result counts as failed"
-                    Expect.equal (count "late" "stopped") 0.0 "and not as stopped"
                 })
         ]
