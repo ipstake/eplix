@@ -101,8 +101,12 @@ type FakeRunner(name: string, keys: (PubKey * byte[]) list) =
     // While set, every call waits here as a request waits in the pool for a connection.
     let mutable connectionGate: Task = Task.CompletedTask
     let mutable openConnection: TaskCompletionSource | null = null
+    let grown = ConcurrentQueue<int>()
 
     member _.Calls = calls
+
+    /// The sizes the module asked the pool of this runner to grow to, in order.
+    member _.Grown = List.ofSeq grown
 
     /// Holds every HEALTH answer until the returned source is set.
     member _.HoldHealth() =
@@ -202,6 +206,7 @@ type FakeRunner(name: string, keys: (PubKey * byte[]) list) =
             Connected = connected.Publish
             FirstUp = firstUp.Publish
             SetSendGate = fun g -> sendGate <- g
+            Grow = fun n -> grown.Enqueue n
             Close = ignore
         }
 
@@ -330,7 +335,7 @@ let private runnerCfg (n: string) : TeeModule.RunnerConfig =
         ClientKey = ""
         TlsKeyPin = ValueNone
         AllowTestnetBuild = false
-        Connections = 1
+        Connections = ValueSome 1
         Attestation = Attest.Settings.Empty
     }
 
@@ -1009,16 +1014,222 @@ let tests =
                              | _ -> false)
                             "equivocation"
 
+                        // The pool class is the request's priority, whatever the duty kind: the
+                        // scheduler sends sync committee messages high, as attestations.
                         let cls duty prio = Mapping.classOf { signReq duty with Priority = prio }
-                        Expect.equal (cls ptc Priority.Low) PoolClass.High "PTC votes go first"
-                        Expect.equal (cls auth Priority.Low) PoolClass.Low "auth an epoch ahead"
-                        Expect.equal (cls auth Priority.High) PoolClass.High "auth a proposal waits for"
+
+                        for d in [ ptc; auth; Duty.SyncCommitteeMessage(9UL, root 2); Duty.Attestation att ] do
+                            Expect.equal (cls d Priority.High) PoolClass.High $"{d.Kind} high"
+                            Expect.equal (cls d Priority.Low) PoolClass.Low $"{d.Kind} low"
                     }
                 ]
 
             testList
                 "pool"
                 [
+                    testT "dials go out at most 16 per 15 s, each counted until 15 s after it ended" (fun () ->
+                        task {
+                            let dials = ref 0
+
+                            let dial (_: CancellationToken) =
+                                Task.FromResult(FakeConn(Interlocked.Increment &dials.contents))
+
+                            let time =
+                                Microsoft.Extensions.Time.Testing.FakeTimeProvider(
+                                    DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero)
+                                )
+
+                            let pool =
+                                new ConnectionPool<FakeConn>(
+                                    "p",
+                                    64,
+                                    0,
+                                    TimeSpan.FromSeconds 5.0,
+                                    dial,
+                                    Log.none,
+                                    time
+                                )
+
+                            let upIs n =
+                                waitFor (fun () ->
+                                    let struct (up, _, dialing, _, _) = pool.Snapshot
+                                    up = n && dialing = 0)
+
+                            // DialNow makes the decision for the current fake time: no wall-clock wait.
+                            let quiet n = Expect.equal (pool.DialNow()) n "no dial before the window ends"
+
+                            pool.Start()
+                            upIs 16
+                            quiet 16
+                            time.Advance(TimeSpan.FromSeconds 15.0 - TimeSpan.FromMilliseconds 1.0)
+                            quiet 16
+                            time.Advance(TimeSpan.FromMilliseconds 1.0)
+                            upIs 32
+                            quiet 32
+                            time.Advance(TimeSpan.FromSeconds 15.0)
+                            upIs 48
+                            time.Advance(TimeSpan.FromSeconds 15.0)
+                            upIs 64
+                            Expect.equal dials.Value 64 "64 dials in all, the most connections allows"
+                            pool.Close()
+                        })
+
+                    testT "a dial still in its handshake holds its place in the window" (fun () ->
+                        task {
+                            let started = ConcurrentQueue<TaskCompletionSource<FakeConn>>()
+
+                            let dial (_: CancellationToken) =
+                                let t =
+                                    TaskCompletionSource<FakeConn>(TaskCreationOptions.RunContinuationsAsynchronously)
+
+                                started.Enqueue t
+                                t.Task
+
+                            let time =
+                                Microsoft.Extensions.Time.Testing.FakeTimeProvider(
+                                    DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero)
+                                )
+
+                            let pool =
+                                new ConnectionPool<FakeConn>(
+                                    "p",
+                                    20,
+                                    0,
+                                    TimeSpan.FromSeconds 60.0,
+                                    dial,
+                                    Log.none,
+                                    time
+                                )
+
+                            pool.Start()
+                            waitFor (fun () -> started.Count = 16)
+                            time.Advance(TimeSpan.FromSeconds 30.0)
+                            Expect.equal (pool.DialNow()) 16 "no 17th dial while 16 are in their handshake"
+
+                            for i, t in Seq.indexed (started.ToArray()) do
+                                t.SetResult(FakeConn i)
+
+                            waitFor (fun () -> let struct (up, _, _, _, _) = pool.Snapshot in up = 16)
+                            time.Advance(TimeSpan.FromSeconds 15.0 - TimeSpan.FromMilliseconds 1.0)
+                            Expect.equal (pool.DialNow()) 16 "the window runs from the end of each dial"
+                            time.Advance(TimeSpan.FromMilliseconds 1.0)
+                            waitFor (fun () -> started.Count = 20)
+                            pool.Close()
+                        })
+
+                    testT "a failed dial leaves the window 1 s after it ended" (fun () ->
+                        task {
+                            let dials = ref 0
+
+                            let dial (_: CancellationToken) =
+                                if Interlocked.Increment &dials.contents <= 16 then
+                                    Task.FromException<FakeConn>(IOException "connection refused")
+                                else
+                                    Task.FromResult(FakeConn dials.Value)
+
+                            let time =
+                                Microsoft.Extensions.Time.Testing.FakeTimeProvider(
+                                    DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero)
+                                )
+
+                            let pool =
+                                new ConnectionPool<FakeConn>(
+                                    "p",
+                                    16,
+                                    0,
+                                    TimeSpan.FromSeconds 5.0,
+                                    dial,
+                                    Log.none,
+                                    time
+                                )
+
+                            pool.Start()
+
+                            waitFor (fun () ->
+                                let struct (_, _, dialing, _, _) = pool.Snapshot in dials.Value = 16 && dialing = 0)
+                            // The backoff (1 s) and the window of the failed dials (1 s) end together.
+                            time.Advance(TimeSpan.FromSeconds 1.0 - TimeSpan.FromMilliseconds 1.0)
+                            Expect.equal (pool.DialNow()) 16 "no dial within 1 s"
+                            time.Advance(TimeSpan.FromMilliseconds 1.0)
+                            waitFor (fun () -> let struct (up, _, _, _, _) = pool.Snapshot in up = 16)
+                            Expect.equal dials.Value 32 "16 more dials after 1 s, not 15 s"
+                            pool.Close()
+                        })
+
+                    testT "redials after a runner restart keep to the window" (fun () ->
+                        task {
+                            let made = ConcurrentQueue<NoticeConn>()
+                            let ids = ref -1
+
+                            let dial (_: CancellationToken) =
+                                let c = NoticeConn(Interlocked.Increment &ids.contents)
+                                made.Enqueue c
+                                Task.FromResult c
+
+                            let time =
+                                Microsoft.Extensions.Time.Testing.FakeTimeProvider(
+                                    DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero)
+                                )
+
+                            let pool =
+                                new ConnectionPool<NoticeConn>(
+                                    "p",
+                                    16,
+                                    0,
+                                    TimeSpan.FromSeconds 5.0,
+                                    dial,
+                                    Log.none,
+                                    time
+                                )
+
+                            pool.Start()
+                            waitFor (fun () -> let struct (up, idle, _, _, _) = pool.Snapshot in up = 16 && idle = 16)
+
+                            for c in made.ToArray() do
+                                c.Break()
+                            // The backoff allows a dial after 1 s; the 16 dials of the start still
+                            // count until 15 s after they ended.
+                            time.Advance(TimeSpan.FromSeconds 15.0 - TimeSpan.FromMilliseconds 1.0)
+                            Expect.equal (pool.DialNow()) 16 "no redial within the window"
+                            time.Advance(TimeSpan.FromMilliseconds 1.0)
+                            waitFor (fun () -> made.Count = 32)
+                            pool.Close()
+                        })
+
+                    testT "Grow raises the size and dials the difference within the window; never shrinks" (fun () ->
+                        task {
+                            let dials = ref 0
+
+                            let dial (_: CancellationToken) =
+                                Task.FromResult(FakeConn(Interlocked.Increment &dials.contents))
+
+                            let time =
+                                Microsoft.Extensions.Time.Testing.FakeTimeProvider(
+                                    DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero)
+                                )
+
+                            let pool =
+                                new ConnectionPool<FakeConn>("p", 8, 0, TimeSpan.FromSeconds 5.0, dial, Log.none, time)
+
+                            let upIs n =
+                                waitFor (fun () ->
+                                    let struct (up, _, dialing, _, _) = pool.Snapshot
+                                    up = n && dialing = 0)
+
+                            pool.Start()
+                            upIs 8
+                            pool.Grow 24
+                            Expect.equal pool.Size 24 "the new size"
+                            upIs 16
+                            Expect.equal (pool.DialNow()) 16 "8 more at once, 16 in the window"
+                            time.Advance(TimeSpan.FromSeconds 15.0)
+                            upIs 24
+                            pool.Grow 10
+                            Expect.equal pool.Size 24 "a lower size changes nothing"
+                            Expect.equal (pool.DialNow()) 24 "no dial for a lower size"
+                            pool.Close()
+                        })
+
                     testT
                         "a free connection goes to high requests first, and to low ones every lowEvery-th time"
                         (fun () ->
@@ -2433,6 +2644,77 @@ let tests =
                 ]
 
             testList
+                "lanes"
+                [
+                    test "lanes per runner from the keys it serves: ceil(V / 64), 8 to 16" {
+                        for v, want in [ 0, 8; 1, 8; 512, 8; 513, 9; 640, 10; 1000, 16; 1024, 16; 1025, 16; 10082, 16 ] do
+                            Expect.equal (TeeModule.lanesFor v) want $"{v} keys"
+                    }
+
+                    testT "a runner without connections grows its pool to the lanes its keys need" (fun () ->
+                        task {
+                            let secret (i: int) =
+                                let b = Array.zeroCreate<byte> 32
+                                b[29] <- 0x51uy
+                                b[30] <- byte (i / 255)
+                                b[31] <- byte (i % 255 + 1)
+                                b
+
+                            let whole = [ for i in 0..599 -> pk (secret i), secret i ]
+                            let groupKeys = [ for s in 0..1 -> shamir (910 + s) 2 [ 1UL; 2UL; 3UL ] ]
+
+                            let runners =
+                                [
+                                    for m in 0..2 ->
+                                        let shares = [ for secret, sh in groupKeys -> pk secret, snd sh[m] ]
+                                        FakeRunner($"r{m + 1}", (if m = 0 then whole @ shares else shares))
+                                ]
+
+                            let settings =
+                                { teeSettings with
+                                    Runners =
+                                        [
+                                            { runnerCfg "r1" with
+                                                Connections = ValueNone
+                                            }
+                                            { runnerCfg "r2" with
+                                                Connections = ValueNone
+                                            }
+                                            { runnerCfg "r3" with
+                                                Connections = ValueSome 4
+                                            }
+                                        ]
+                                    Groups =
+                                        [
+                                            {
+                                                Threshold = 2
+                                                Members = [ "r1", 1UL; "r2", 2UL; "r3", 3UL ]
+                                            }
+                                        ]
+                                }
+
+                            let set =
+                                TeeModule.TeeSet(
+                                    [ for r, f in List.zip settings.Runners runners -> r, f.Api ],
+                                    settings,
+                                    TimeProvider.System,
+                                    Log.none
+                                )
+
+                            let! found, _ = set.Discover CancellationToken.None
+                            Expect.equal found.Length 602 "600 whole keys and 2 group keys"
+                            // r1 serves 600 whole keys and 2 group keys: ceil(602 / 64) = 10.
+                            Expect.equal runners[0].Grown [ 10 ] "r1: 10 lanes"
+                            Expect.equal runners[1].Grown [ 8 ] "r2: 2 keys, at least 8"
+                            Expect.equal runners[2].Grown [] "r3: connections set, never resized"
+                            // A refresh with the same keys asks for the same size again.
+                            let! _ = set.Discover CancellationToken.None
+                            Expect.equal runners[0].Grown [ 10; 10 ] "r1 after a refresh"
+                            set.Stop()
+                        })
+                ]
+
+            testList
                 "config"
                 [
                     test "a config with runners and a group parses; mistakes are refused" {
@@ -2454,7 +2736,8 @@ let tests =
                         | Ok s ->
                             Expect.equal s.Runners.Length 2 "two runners"
                             Expect.equal (s.Runners[1].Host, s.Runners[1].Port) ("192.0.2.2", 7100) "address"
-                            Expect.equal s.Runners[0].Connections 8 "default 8 connections"
+                            Expect.equal s.Runners[0].Connections ValueNone "no connections: sized from the keys"
+                            Expect.equal s.Runners[1].Connections (ValueSome 4) "connections set"
                             Expect.equal s.LowEvery 4 "lowEvery"
                             Expect.equal s.Timeout (TimeSpan.FromMilliseconds 1500.0) "timeout"
                             Expect.equal s.Runners[0].ClientCert (Path.Combine(dir, "c.pem")) "relative to the config"

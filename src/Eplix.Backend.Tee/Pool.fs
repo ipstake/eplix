@@ -4,12 +4,20 @@
 /// (1 s, doubling to 16 s). A connection lost within 5 s of its dial, before it served a request,
 /// counts as a failed dial. Each connection carries one request at a time.
 ///
+/// Dials go out in a window: at most 16 count at once. A dial counts from its start until 15 s
+/// after it ended, or 1 s after a failed one. By default a runner accepts at most 16 handshakes
+/// at once from one address, and the forwarder in front of an AWS runner closes a connection
+/// from an address that has 16 others open and accepted less than 15 s before. Both see a
+/// connection no earlier than the dial's start, and a failed dial has closed its connection when
+/// it ends, so the window keeps under both limits for any pool size. Grow raises the size while
+/// the pool runs; the pool never shrinks.
+///
 /// Two queues, each first come first served. A connection that comes free goes to the oldest
-/// high request first (attestations, blocks, RANDAO; Gloas PTC votes and envelopes when they
-/// exist), so they wait at most for the requests already on a connection. Low requests (sync
-/// committee and aggregation work, exits, HEALTH) do not starve: while any waits, at least
-/// every lowEvery-th connection that comes free goes to the oldest of them. lowEvery 0 keeps one
-/// queue.
+/// high request first (the requests the caller marks high: attestations, sync committee
+/// messages, blocks, RANDAO, PTC votes, envelopes), so they wait at most for the requests already
+/// on a connection. Low requests (aggregation and sync aggregation work, exits, registrations,
+/// HEALTH) do not starve: while any waits, at least every lowEvery-th connection that comes free
+/// goes to the oldest of them. lowEvery 0 keeps one queue.
 namespace Eplix.Backend.Tee
 
 open System
@@ -44,6 +52,13 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
     // this clock, so a step of the system clock does not stretch them.
     let time = defaultArg time TimeProvider.System
     let gate = obj ()
+    let mutable target = size
+    // Dials in progress, the pool's and the rotation's, and the timestamps at which the ended
+    // ones leave the window, oldest first.
+    let mutable inDial = 0
+    let windowEnds = Queue<int64>()
+    // Dials maintain started since the pool was made, for tests (DialNow).
+    let mutable started = 0
     let up = HashSet<'C>(HashIdentity.Reference)
     let free = Stack<'C>()
     let high = LinkedList<TaskCompletionSource<Choice<'C, string>>>()
@@ -92,6 +107,36 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
     // reads HEALTH). 5 s is far above a handshake and the time to the first request on a warm
     // pool, and far below the life of a good connection.
     static let settle = TimeSpan.FromSeconds 5.0
+
+    static let maxDialsInWindow = 16
+    static let dialWindow = TimeSpan.FromSeconds 15.0
+    // A failed dial has closed its connection; the margin covers the time the forwarder takes to
+    // see the close.
+    static let failedDialWindow = TimeSpan.FromSeconds 1.0
+
+    /// Under the gate: the dials that count against the window now.
+    let windowUsed () =
+        let now = time.GetTimestamp()
+
+        while windowEnds.Count > 0 && windowEnds.Peek() <= now do
+            windowEnds.Dequeue() |> ignore
+
+        inDial + windowEnds.Count
+
+    /// Under the gate: a dial ended. It counts for dialWindow more, failedDialWindow when it
+    /// failed. The queue stays in order: a failed dial's end goes before later ones it passes.
+    let dialEnded (ok: bool) =
+        inDial <- inDial - 1
+        let ends = time.GetTimestamp() + ticksOf (if ok then dialWindow else failedDialWindow)
+
+        if windowEnds.Count = 0 || ends >= Seq.last windowEnds then
+            windowEnds.Enqueue ends
+        else
+            let all = Array.append (windowEnds.ToArray()) [| ends |] |> Array.sort
+            windowEnds.Clear()
+
+            for e in all do
+                windowEnds.Enqueue e
 
     /// Under the gate: a dial went well, or a connection proved it works. Resets the backoff.
     let settled () =
@@ -191,13 +236,25 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
             low.Clear()
 
     let rec maintain () =
-        // Called under the gate: dial until size connections are up or dialing.
-        while not closed && up.Count + dialing < size && time.GetTimestamp() >= notBefore do
+        // Called under the gate: dial until target connections are up or dialing, as far as the
+        // backoff and the dial window allow.
+        while not closed
+              && up.Count + dialing < target
+              && time.GetTimestamp() >= notBefore
+              && windowUsed () < maxDialsInWindow do
             dialing <- dialing + 1
+            inDial <- inDial + 1
+            started <- started + 1
             Task.Run(fun () -> dialOne ()) |> ignore
 
-        if not closed && up.Count + dialing < size && isNull kick then
-            let wait = until notBefore
+        // When the window is full of dials in progress, the end of one calls maintain again.
+        let windowFree =
+            if windowUsed () < maxDialsInWindow then ValueSome Int64.MinValue
+            elif windowEnds.Count > 0 then ValueSome(windowEnds.Peek())
+            else ValueNone
+
+        if not closed && up.Count + dialing < target && isNull kick && windowFree.IsSome then
+            let wait = until (max notBefore windowFree.Value)
             // The callback leaves the timer's thread first: a test clock can fire it inside
             // CreateTimer, before kick holds the timer.
             kick <-
@@ -238,6 +295,12 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
                 lock gate (fun () ->
                     dialing <- dialing - 1
 
+                    dialEnded (
+                        match result with
+                        | Choice1Of2 _ -> true
+                        | Choice2Of2 _ -> false
+                    )
+
                     match result with
                     | Choice1Of2 c when closed -> ValueSome c
                     | Choice1Of2 c ->
@@ -255,6 +318,8 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
                                 log.Warn $"{name}: a first-connection handler failed: {e.Message}"
 
                         if give c then
+                            // More to dial once the window has room.
+                            maintain ()
                             ValueNone
                         else
                             // Broken already at the handover: a failed dial.
@@ -419,20 +484,58 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
                     if replaced > 0 then
                         log.Info $"{name}: {replaced} connections redialed with the new client certificate"
                 else
+                    // A place in the dial window first.
+                    let mutable placed = false
+
+                    while go && not placed do
+                        let wait =
+                            lock gate (fun () ->
+                                if closed then
+                                    ValueNone
+                                elif windowUsed () < maxDialsInWindow then
+                                    inDial <- inDial + 1
+                                    ValueSome TimeSpan.Zero
+                                elif windowEnds.Count > 0 then
+                                    ValueSome(until (windowEnds.Peek()))
+                                else
+                                    // Full of dials in progress: look again in a second.
+                                    ValueSome(TimeSpan.FromSeconds 1.0))
+
+                        match wait with
+                        | ValueNone -> go <- false
+                        | ValueSome w when w = TimeSpan.Zero -> placed <- true
+                        | ValueSome w ->
+                            try
+                                do! Task.Delay(w, time, stop.Token)
+                            with :? OperationCanceledException ->
+                                go <- false
+
                     let sw = Diagnostics.Stopwatch.StartNew()
 
                     let! result =
-                        task {
-                            try
-                                use cts = CancellationTokenSource.CreateLinkedTokenSource stop.Token
-                                cts.CancelAfter dialTimeout
-                                let! c = dial cts.Token
-                                return Choice1Of2 c
-                            with e ->
-                                return Choice2Of2 e.Message
-                        }
+                        if not placed then
+                            Task.FromResult(Choice2Of2 "pool closed")
+                        else
+                            task {
+                                try
+                                    use cts = CancellationTokenSource.CreateLinkedTokenSource stop.Token
+                                    cts.CancelAfter dialTimeout
+                                    let! c = dial cts.Token
+                                    return Choice1Of2 c
+                                with e ->
+                                    return Choice2Of2 e.Message
+                            }
+
+                    if placed then
+                        lock gate (fun () ->
+                            dialEnded (
+                                match result with
+                                | Choice1Of2 _ -> true
+                                | Choice2Of2 _ -> false
+                            ))
 
                     match result with
+                    | _ when not placed -> ()
                     | Choice1Of2 c ->
                         failedRow <- 0
                         replaced <- replaced + 1
@@ -489,7 +592,9 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
         }
 
     member _.Name = name
-    member _.Size = size
+
+    /// The connections the pool keeps: the size it started with, or more after Grow.
+    member _.Size = lock gate (fun () -> target)
 
     /// Connections up, idle, dialing; requests waiting high and low.
     member _.Snapshot = lock gate (fun () -> struct (up.Count, free.Count, dialing, high.Count, low.Count))
@@ -505,6 +610,32 @@ type ConnectionPool<'C when 'C :> PoolConn and 'C: not struct>
 
     /// Dials every connection in the background.
     member _.Start() = lock gate (fun () -> maintain ())
+
+    /// For tests: makes the dial decision for the clock's current time, as a timer would, and
+    /// returns how many dials maintain started since the pool was made. Every dial the size, the
+    /// backoff and the window allow at this time has started when it returns, so a test on a
+    /// fake clock can check that no further dial goes out without waiting on the wall clock.
+    member internal _.DialNow() =
+        lock gate (fun () ->
+            maintain ()
+            started)
+
+    /// Raises the size to n connections and dials the new ones within the dial window. A size
+    /// at or below the current one changes nothing: connections in use are never closed for it.
+    member _.Grow(n: int) =
+        let grew =
+            lock gate (fun () ->
+                if closed || n <= target then
+                    ValueNone
+                else
+                    let old = target
+                    target <- n
+                    maintain ()
+                    ValueSome old)
+
+        match grew with
+        | ValueSome old -> log.Info $"{name}: {old} -> {n} connections"
+        | ValueNone -> ()
 
     /// Redials the connections for which `isStale` holds, one at a time in the background, by
     /// `deadline`. A later call replaces the test and the deadline of one

@@ -118,18 +118,15 @@ module Mapping =
     /// toOutcomeWith without ha_peer.
     let toOutcome (runner: string) (duty: Duty) (r: Wire.Refusal) : SignOutcome = toOutcomeWith false runner duty r
 
-    /// Requests in the high class of the pool: the ones a slot's timing depends on. Builder
-    /// request auth follows the request's priority: low an epoch ahead, high when a proposal
-    /// waits for it.
+    /// The pool class of a request is its own priority. The callers mark high what a slot's
+    /// timing depends on: attestations, sync committee messages, blocks, RANDAO, PTC votes,
+    /// envelopes, and builder request auth when a proposal waits for it. Selection proofs,
+    /// aggregates, sync contributions, exits, registrations, proposer preferences and builder
+    /// request auth an epoch ahead go low.
     let classOf (req: SignRequest) =
-        match req.Duty with
-        | Duty.Attestation _
-        | Duty.Block _
-        | Duty.RandaoReveal _
-        | Duty.PayloadAttestation _
-        | Duty.PayloadEnvelope _ -> PoolClass.High
-        | Duty.BuilderRequestAuth _ when req.Priority = Priority.High -> PoolClass.High
-        | _ -> PoolClass.Low
+        match req.Priority with
+        | Priority.High -> PoolClass.High
+        | Priority.Low -> PoolClass.Low
 
 /// What a runner's HEALTH says about its signing.
 [<RequireQualifiedAccess>]
@@ -289,6 +286,8 @@ type RunnerApi =
         /// Sets the check a request runs once it has its connection, before it is sent: true
         /// holds it back unsent (Reply.Held).
         SetSendGate: (Wire.MsgType -> bool) -> unit
+        /// Raises the pool size to n connections; a lower n changes nothing.
+        Grow: int -> unit
         Close: unit -> unit
     }
 
@@ -344,6 +343,7 @@ module RunnerApi =
             Connected = pool.Connected
             FirstUp = pool.FirstUp
             SetSendGate = fun g -> sendGate <- g
+            Grow = fun n -> pool.Grow n
             Close = fun () -> pool.Close()
         }
 

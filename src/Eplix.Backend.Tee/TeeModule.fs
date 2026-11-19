@@ -2,7 +2,7 @@
 /// gateway in between. Config section "tee":
 ///   { "runners": [ { "name": "signer-1", "address": "tcp:192.0.2.1:7100",
 ///                    "client_cert": "<file>", "client_key": "<file>",
-///                    "tls_key_pin": "<hex>", "allow_testnet_build": false, "connections": 8,
+///                    "tls_key_pin": "<hex>", "allow_testnet_build": false, "connections": 16,
 ///                    "attestation": { "verifier": "aws-nitro", "nitro_pcrs": { ... }, "setup_sha256": [ "..." ],
 ///                                     "key_release_sha256": [ "..." ] } } ],
 ///     "groups": [ { "threshold": 2, "members": [ { "runner": "signer-1", "index": 1 }, ... ] } ],
@@ -16,6 +16,8 @@
 /// their directories, and on SIGHUP. A changed client certificate redials the pool's connections
 /// one at a time within rotate_within_seconds.
 /// "signing" (jitter_ms, jitter_by_duty_ms) is read by the core (SigningJitter.fs).
+/// connections (1 to 64) fixes a runner's pool size. Without it the pool has lanesFor V
+/// connections, V the keys the runner serves, and grows when the key list grows.
 /// ha_peer: another VC signs the same keys through the same runners (HA). A runner's "already
 /// signed" refusal (SC_ERR_SLASH_TARGET, SC_ERR_SLASH_SOURCE, SC_ERR_SLASH_BLOCK,
 /// SC_ERR_EQUIVOCATION) then means the peer won the duty: skipped, counted, the key keeps
@@ -58,7 +60,8 @@ type RunnerConfig =
         ClientKey: string
         TlsKeyPin: byte[] voption
         AllowTestnetBuild: bool
-        Connections: int
+        /// The pool size when set; without it the size follows the keys (lanesFor).
+        Connections: int voption
         Attestation: Attest.Settings
     }
 
@@ -160,8 +163,8 @@ let parseRunnerAt (section: ConfigSection) (where: string) (e: JsonElement) : Ru
 
     let connections =
         match tryProp e "connections" with
-        | ValueSome v -> boundedInt $"{where}.connections" 1 64 v
-        | ValueNone -> 8
+        | ValueSome v -> ValueSome(boundedInt $"{where}.connections" 1 64 v)
+        | ValueNone -> ValueNone
 
     let allowTestnet =
         match tryProp e "allow_testnet_build" with
@@ -507,6 +510,13 @@ let discoveredKeysReloading (s: Settings) (log: Log) (time: TimeProvider) =
 /// The key sources of a config. The CA bundle loads here, so a bad file fails the start.
 let discoveredKeys (s: Settings) = discoveredKeysReloading s Log.none TimeProvider.System |> Result.map fst
 
+/// The pool size of a runner without `connections`: one connection per 64 keys it serves
+/// (whole keys, and the threshold keys of its groups), 8 to 16. In a load test with 1,000 keys in
+/// a 3 of 4 group, one runner 500 ms slower and a second refusing every tenth key, 8 connections
+/// missed 55 to 69 of 2,000 votes and 16 missed none. The steps between 8 and 16 were not
+/// measured.
+let lanesFor (keys: int) = Math.Clamp((keys + 63) / 64, 8, 16)
+
 /// Every runner, whole-key backend and threshold group of the config.
 type TeeSet(runners: (RunnerConfig * RunnerApi) list, settings: Settings, time: TimeProvider, log: Log) =
     let endpoints = [ for cfg, api in runners -> cfg.Name, RunnerEndpoint(api, log) ] |> Map.ofList
@@ -515,7 +525,7 @@ type TeeSet(runners: (RunnerConfig * RunnerApi) list, settings: Settings, time: 
         for KeyValue(_, x) in endpoints do
             x.HaPeer <- settings.HaPeer
 
-    let wholeKey = [ for KeyValue(n, x) in endpoints -> x, x.WholeKeys $"tee {n}" ]
+    let wholeKey = [ for KeyValue(n, x) in endpoints -> n, x, x.WholeKeys $"tee {n}" ]
     let mutable lastAnswers: MemberAnswer list = []
     let mutable refused: (PubKey * string) list = []
     let shareChecks = Threshold.ShareChecks()
@@ -599,11 +609,24 @@ type TeeSet(runners: (RunnerConfig * RunnerApi) list, settings: Settings, time: 
 
             let skipped = HashSet<string>()
             let offSplit = ResizeArray<PubKey * string>()
+            // Keys each runner serves: its whole keys and the threshold keys of its groups.
+            let served = Dictionary<string, int>()
 
-            for x, backend in wholeKey do
+            let serve (runner: string) =
+                served[runner] <-
+                    (match served.TryGetValue runner with
+                     | true, n -> n
+                     | _ -> 0)
+                    + 1
+
+            for n, x, backend in wholeKey do
                 for k in x.Listed do
                     if k.SharePubKey = k.PubKey then
-                        if allowed k.PubKey then out.Add(k.PubKey, backend) else skipped.Add k.PubKey.Hex |> ignore
+                        if allowed k.PubKey then
+                            out.Add(k.PubKey, backend)
+                            serve n
+                        else
+                            skipped.Add k.PubKey.Hex |> ignore
             // Every group key first, then their checks in one call (in parallel when many need
             // one), then the routes in the same order.
             let groupKeys = ResizeArray<struct (int * PubKey)>()
@@ -636,11 +659,26 @@ type TeeSet(runners: (RunnerConfig * RunnerApi) list, settings: Settings, time: 
                 let _, backend = groupArray[gi]
 
                 match results[i] with
-                | Ok() -> out.Add(key, backend)
+                | Ok() ->
+                    out.Add(key, backend)
+
+                    for runner, _ in (fst groupArray[gi]).Members do
+                        serve runner
                 | Error why -> offSplit.Add(key, $"{backend.Name}: {why}")
 
             shareChecks.Sweep()
             refused <- List.ofSeq offSplit
+            // A runner without `connections` grows its pool to the keys it serves.
+            for cfg, api in runners do
+                if cfg.Connections.IsNone then
+                    api.Grow(
+                        lanesFor (
+                            match served.TryGetValue cfg.Name with
+                            | true, n -> n
+                            | _ -> 0
+                        )
+                    )
+
             let inGroup = settings.Groups |> List.collect (fun g -> g.Members |> List.map fst) |> set
 
             for KeyValue(n, x) in endpoints do
@@ -719,7 +757,8 @@ let connect
             let pool =
                 new ConnectionPool<RunnerConnection>(
                     $"tee {r.Name}",
-                    r.Connections,
+                    // Without `connections`: the least, until the key list is read.
+                    defaultValueArg r.Connections (lanesFor 0),
                     s.LowEvery,
                     s.DialTimeout,
                     dial,
