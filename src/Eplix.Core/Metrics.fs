@@ -119,8 +119,7 @@ module Metrics =
             "eplix_signing_duration_seconds"
             "Time a backend took to answer one signing request"
 
-    /// Backend answers by backend, duty kind and outcome (signed, refused, failed, and stopped
-    /// for a threshold member the group stopped once it had its result).
+    /// Backend answers by backend, duty kind and outcome (signed, refused, failed).
     let signRequests =
         meter.CreateCounter<int64>(
             "eplix_sign_requests",
@@ -263,11 +262,6 @@ module Metrics =
         let duty = dutyLabel kind
         signingDuration.Record(seconds, tag "backend" backend, tag "duty" duty)
         signRequests.Add(1L, tag "backend" backend, tag "duty" duty, tag "outcome" (outcomeLabel outcome))
-
-    /// A threshold member's request that the group stopped once it had its result: outcome
-    /// `stopped`, not `failed`. No latency: the time until the stop is not the member's.
-    let stopped (backend: string) (kind: DutyKind) =
-        signRequests.Add(1L, tag "backend" backend, tag "duty" (dutyLabel kind), tag "outcome" "stopped")
 
     let denied (key: PubKey) (kind: DutyKind) = signerDenied.Add(1L, tag "key" key.Hex, tag "duty" (dutyLabel kind))
 

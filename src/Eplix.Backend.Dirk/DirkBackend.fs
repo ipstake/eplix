@@ -291,7 +291,7 @@ type DirkEndpoint
     member _.Accounts: (PubKey * DirkAccount) list = [ for KeyValue(k, a) in accounts -> k, a ]
 
     /// Down after a transport error. Degraded after a timeout: the caller's own cancel (a
-    /// threshold group stops its stragglers) also ends a call as a timeout, so it is not Down.
+    /// threshold member's own timeout) also ends a call as a timeout, so it is not Down.
     member _.Health: Health =
         match lastTransportError with
         | ValueSome m -> Down $"Dirk {api.Address}: {m}"
