@@ -402,7 +402,7 @@ let private teeSettings (c: Cluster) (runners: string list) (groups: TeeModule.G
                         ClientKey = Path.Combine(c.Dir, "eplix.key")
                         TlsKeyPin = ValueNone
                         AllowTestnetBuild = false
-                        Connections = 8
+                        Connections = ValueSome 8
                         Attestation =
                             { Attest.Settings.Empty with
                                 Verifier = "dev"

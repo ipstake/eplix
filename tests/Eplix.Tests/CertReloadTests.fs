@@ -560,7 +560,7 @@ let private runnerConfig (name: string) (crt: string) (key: string) (connections
         ClientKey = key
         TlsKeyPin = ValueNone
         AllowTestnetBuild = false
-        Connections = connections
+        Connections = ValueSome connections
         Attestation = Attest.Settings.Empty
     }
 

@@ -51,7 +51,7 @@ let private runnerCfg (n: string) : TeeModule.RunnerConfig =
         ClientKey = ""
         TlsKeyPin = ValueNone
         AllowTestnetBuild = false
-        Connections = 1
+        Connections = ValueSome 1
         Attestation = Attest.Settings.Empty
     }
 

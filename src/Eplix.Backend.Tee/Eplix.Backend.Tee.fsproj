@@ -19,4 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="../Eplix.Core/Eplix.Core.fsproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Eplix.Tests" />
+  </ItemGroup>
 </Project>
