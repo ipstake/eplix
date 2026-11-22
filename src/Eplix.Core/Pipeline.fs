@@ -297,7 +297,8 @@ type Pipeline(db: SlashingDb, registry: KeyRegistry, time: TimeProvider, log: Lo
                         Task.FromResult(Refused(Slashable why))
                     | Verdict.NoRecord -> Task.FromResult(Refused(PolicyDenied "no slot mark record"))
                     | Verdict.WriteFailed why ->
-                        log.Error why
+                        // The store logs the failed write and the first good write after it.
+                        log.Debug $"key {r.Key.Short}: {why}"
                         Task.FromResult(Failed(Internal why)))
 
             toCheck
@@ -312,7 +313,8 @@ type Pipeline(db: SlashingDb, registry: KeyRegistry, time: TimeProvider, log: Lo
                         Task.FromResult(Refused(Slashable why))
                     | Verdict.NoRecord -> Task.FromResult(Refused(PolicyDenied "no slashing record"))
                     | Verdict.WriteFailed why ->
-                        log.Error why
+                        // The store logs the failed write and the first good write after it.
+                        log.Debug $"key {r.Key.Short}: {why}"
                         Task.FromResult(Failed(Internal why)))
 
             return outcomes

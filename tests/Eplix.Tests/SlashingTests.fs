@@ -659,13 +659,17 @@ let tests =
                         ] do
                         let file = new ModelFile([||])
                         let db = openDb file
+                        db.Time <- Microsoft.Extensions.Time.Testing.FakeTimeProvider()
                         db.RegisterKeys [ key 0, KeyOrigin.StartedEmpty ] |> ignore
                         file.CrashAt <- file.Ops + step
                         file.CrashKind <- kind
                         let v = check db [ req; req ]
                         Expect.isTrue (v |> Array.forall writeFailed) $"{kind}: both refused: %A{v}"
                         Expect.equal (db.Marks(key 0)) (ValueSome KeyMarks.Empty) "marks unchanged"
-                        Expect.isTrue (check db [ req ] |> Array.forall writeFailed) "the DB refuses until restart"
+
+                        Expect.isTrue
+                            (check db [ req ] |> Array.forall writeFailed)
+                            "the DB refuses until the backoff passes"
             }
 
             test "slot marks: a failed write refuses both copies of a request listed twice in a burst" {
