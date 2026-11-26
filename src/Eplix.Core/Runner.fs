@@ -675,6 +675,14 @@ module Runner =
 
                                     ProposerConfig.Refresher(w.Reload, clock, config.ProposerConfigLead, apply, log))
 
+                            // After a failed write both stores try again on their own backoff and log
+                            // the failure and the recovery.
+                            db.Time <- opts.Time
+                            db.Log <- ValueSome log
+                            slotMarks.Time <- opts.Time
+                            slotMarks.Log <- ValueSome log
+                            Metrics.watchSlashingStore "slashing_db" (fun () -> db.DownSince)
+                            Metrics.watchSlashingStore "slot_marks" (fun () -> slotMarks.DownSince)
                             let pipeline = Pipeline(db, registry, opts.Time, log, slotMarks)
                             pipeline.Switches.SetConfig config.Switches
 
@@ -724,13 +732,14 @@ module Runner =
                             // and the slot marks file close.
                             let snapshots =
                                 SnapshotGate(fun epoch ->
+                                    // A failed snapshot is a failed write: the store logs it.
                                     match db.Compact() with
                                     | Ok() -> log.Debug $"epoch {epoch}: slashing DB snapshot written"
-                                    | Error e -> log.Error e
+                                    | Error e -> log.Debug e
 
                                     match slotMarks.Compact() with
                                     | Ok() -> log.Debug $"epoch {epoch}: slot marks snapshot written"
-                                    | Error e -> log.Error e)
+                                    | Error e -> log.Debug e)
 
                             use stopping = CancellationTokenSource.CreateLinkedTokenSource ct
                             let stopReason = ref ValueNone

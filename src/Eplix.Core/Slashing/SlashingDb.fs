@@ -47,7 +47,8 @@ type Verdict =
     | Refused of reason: string
     /// The key has no slashing record yet; it must not sign.
     | NoRecord
-    /// The write failed. The DB refuses everything until restart.
+    /// The write failed. The DB refuses everything until a write succeeds again, which it tries
+    /// after a backoff (WriteRetry).
     | WriteFailed of reason: string
 
 module Record =
@@ -163,29 +164,59 @@ type SlashingDb
     private (file: IMarkFile, gvr: Root, keys: Concurrent.ConcurrentDictionary<PubKey, KeyState>, info: OpenInfo) =
     let byId = List<KeyState>(keys.Values |> Seq.sortBy (fun k -> k.Id))
     let appendGate = new SemaphoreSlim(1, 1)
-    let mutable failed: string voption = ValueNone
+    let retry = WriteRetry "slashing DB"
+
+    /// The whole DB as one record per key and mark, from the marks in memory. The caller holds
+    /// the append gate: every change to byId and the marks runs under it.
+    let snapshot () =
+        [|
+            Record.header gvr
+            for s in byId do
+                Record.key s.Id s.Key s.Origin
+            for s in byId do
+                match s.Marks.Block with
+                | ValueSome b -> Record.block s.Id b
+                | ValueNone -> ()
+
+                match s.Marks.Attestation with
+                | ValueSome a -> Record.attestation s.Id a
+                | ValueNone -> ()
+        |]
+        |> Array.concat
 
     /// Appends and syncs under the append gate, then runs `apply` (the in-memory update) still
     /// under the gate, so a snapshot never sees records on disk without their marks in memory.
-    /// Any exception from the write poisons the DB. Checks `failed` again under the gate: another
-    /// write may have failed after the caller's own check, and nothing may land after that.
+    /// After a failed write nothing lands until a write succeeds: before the backoff passes this
+    /// throws without touching the file, and after it the first write rewrites the whole file
+    /// before its own records. Checks under the gate: another write may have failed after the
+    /// caller's own check.
     let write (records: byte[] list) (apply: unit -> unit) =
         appendGate.Wait()
 
         try
-            match failed with
+            match retry.Waiting with
             | ValueSome f -> failwith $"slashing DB failed earlier: {f}"
             | ValueNone -> ()
 
-            if not records.IsEmpty then
-                try
+            try
+                if retry.IsDown then
+                    // The failed write may have left part of its records in the file (if the cut
+                    // back failed), and records appended after a torn one would fail the replay.
+                    // So write the file again from memory, which holds what earlier syncs made
+                    // durable and nothing of a failed write (that never reaches `apply`). Replace
+                    // renames a synced new file over the old one: a crash leaves the old file or
+                    // the new one, and both hold every mark that was durable before.
+                    file.Replace(snapshot ())
+
+                if not records.IsEmpty then
                     file.Append(Array.concat records)
                     file.Sync()
-                with e ->
-                    failed <- ValueSome e.Message
-                    reraise ()
+            with e ->
+                retry.Failed e.Message
+                reraise ()
 
             apply ()
+            retry.Succeeded()
         finally
             appendGate.Release() |> ignore
 
@@ -195,7 +226,7 @@ type SlashingDb
     /// those keys. Holds the per-key locks of the keys it touches, in key id order, as
     /// CheckAndRecord does, so it is safe while the VC runs. One fsync.
     let merge (origin: KeyOrigin) (entries: (PubKey * KeyMarks) list) : Result<PubKey list, string> =
-        match failed with
+        match retry.Waiting with
         | ValueSome f -> Error $"slashing DB failed earlier: {f}"
         | ValueNone ->
             lock keys (fun () ->
@@ -402,6 +433,19 @@ type SlashingDb
 
     member _.GenesisValidatorsRoot = gvr
     member _.OpenInfo = info
+
+    /// The clock of the retry backoff after a failed write.
+    member _.Time
+        with get () = retry.Time
+        and set (v: TimeProvider) = retry.Time <- v
+
+    /// Where a failed write and the first good write after it are logged; none by default.
+    member _.Log
+        with get () = retry.Log
+        and set (v: Log voption) = retry.Log <- v
+
+    member _.DownSince = retry.DownSince
+
     member _.HasRecord(key: PubKey) = keys.ContainsKey key
     /// Under the lock the writers hold: merge and RegisterKeys add to byId while the VC runs.
     member _.Keys: PubKey list = lock keys (fun () -> [ for s in byId -> s.Key ])
@@ -420,7 +464,7 @@ type SlashingDb
     /// Tests and benchmarks only: the VC starts a key with no history only through a floor
     /// (RaiseFloor).
     member internal _.RegisterKeys(newKeys: (PubKey * KeyOrigin) list) : Result<int, string> =
-        match failed with
+        match retry.Waiting with
         | ValueSome f -> Error $"slashing DB failed earlier: {f}"
         | ValueNone ->
             lock keys (fun () ->
@@ -451,7 +495,7 @@ type SlashingDb
     /// one fsync. Locks are per key, taken in key id order.
     member _.CheckAndRecord(requests: SlashingRequest[], ct: CancellationToken) : Task<Verdict[]> =
         task {
-            match failed with
+            match retry.Waiting with
             | ValueSome f ->
                 return Array.create requests.Length (Verdict.WriteFailed $"slashing DB failed earlier: {f}")
             | ValueNone ->
@@ -581,32 +625,19 @@ type SlashingDb
             Data = [ for s in selected -> Interchange.entryOf s.Key s.Marks ]
         }
 
-    /// Rewrites the log as one record per key and mark (the snapshot). Atomic through IMarkFile.Replace.
+    /// Rewrites the log as one record per key and mark (the snapshot). Atomic through
+    /// IMarkFile.Replace. After a failed write it is also a try: when it succeeds, signing resumes.
     member _.Compact() : Result<unit, string> =
         lock keys (fun () ->
             appendGate.Wait()
 
             try
                 try
-                    let records =
-                        [
-                            Record.header gvr
-                            for s in byId do
-                                Record.key s.Id s.Key s.Origin
-                            for s in byId do
-                                match s.Marks.Block with
-                                | ValueSome b -> Record.block s.Id b
-                                | ValueNone -> ()
-
-                                match s.Marks.Attestation with
-                                | ValueSome a -> Record.attestation s.Id a
-                                | ValueNone -> ()
-                        ]
-
-                    file.Replace(Array.concat records)
+                    file.Replace(snapshot ())
+                    retry.Succeeded()
                     Ok()
                 with e ->
-                    failed <- ValueSome e.Message
+                    retry.Failed e.Message
                     Error $"slashing DB compaction failed: {e.Message}"
             finally
                 appendGate.Release() |> ignore)

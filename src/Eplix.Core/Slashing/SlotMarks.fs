@@ -118,22 +118,47 @@ type SlotMarks
     private
     (file: IMarkFile, gvr: Root, keys: Dictionary<PubKey, SlotKeyState>, byId: List<SlotKeyState>, info: OpenInfo) =
     let gate = new SemaphoreSlim(1, 1)
-    let mutable failed: string voption = ValueNone
+    let retry = WriteRetry "slot marks"
 
-    /// One append and one fsync. Any exception poisons the store. The caller holds the gate;
-    /// checks `failed` again under it, as another write may have failed after the caller's check.
+    /// The whole store as one record per key and mark, from the marks in memory. The caller
+    /// holds the gate: every change to byId and the marks runs under it.
+    let snapshot () =
+        [|
+            SlotRecord.header gvr
+            for s in byId do
+                SlotRecord.key s.Id s.Key
+            for s in byId do
+                match s.Marks.PayloadAttestation with
+                | ValueSome m -> SlotRecord.mark s.Id SlotMarkKind.PayloadAttestation m
+                | ValueNone -> ()
+
+                match s.Marks.PayloadEnvelope with
+                | ValueSome m -> SlotRecord.mark s.Id SlotMarkKind.PayloadEnvelope m
+                | ValueNone -> ()
+        |]
+        |> Array.concat
+
+    /// One append and one fsync. The caller holds the gate and updates the marks in memory only
+    /// on Ok. After a failed write nothing lands until a write succeeds: before the backoff
+    /// passes this fails without touching the file, and after it the first write rewrites the
+    /// whole file from memory before its own records, as in the slashing DB (SlashingDb.write
+    /// says why). Checks under the gate, as another write may have failed after the caller's check.
     let write (records: List<byte[]>) : Result<unit, string> =
-        if failed.IsSome then
-            Error $"failed earlier: {failed.Value}"
-        elif records.Count = 0 then
-            Ok()
-        else
+        match retry.Waiting with
+        | ValueSome f -> Error $"failed earlier: {f}"
+        | ValueNone ->
             try
-                file.Append(Array.concat records)
-                file.Sync()
+                if retry.IsDown then
+                    file.Replace(snapshot ())
+
+                if records.Count > 0 then
+                    file.Append(Array.concat records)
+                    file.Sync()
+
+                retry.Succeeded()
                 Ok()
             with e ->
-                failed <- ValueSome e.Message
+                retry.Failed e.Message
                 Error e.Message
 
     /// Opens or creates the store. Replays the log, cuts a torn tail, checks the genesis
@@ -247,6 +272,19 @@ type SlotMarks
                         )
 
     member _.OpenInfo = info
+
+    /// The clock of the retry backoff after a failed write.
+    member _.Time
+        with get () = retry.Time
+        and set (v: TimeProvider) = retry.Time <- v
+
+    /// Where a failed write and the first good write after it are logged; none by default.
+    member _.Log
+        with get () = retry.Log
+        and set (v: Log voption) = retry.Log <- v
+
+    member _.DownSince = retry.DownSince
+
     member _.KeyCount = lock keys (fun () -> keys.Count)
 
     member _.Marks(key: PubKey) : SlotKeyMarks voption =
@@ -258,10 +296,10 @@ type SlotMarks
     /// Checks a burst and makes the marks of every allowed request durable with one append and
     /// one fsync. A key seen for the first time gets its record in the same append. Verdicts are
     /// Allowed, Repeat, Refused or WriteFailed, never NoRecord. A failed write refuses everything
-    /// until restart, as in the slashing DB.
+    /// until a write succeeds again, as in the slashing DB.
     member _.CheckAndRecord(requests: SlotMarkRequest[], ct: CancellationToken) : Task<Verdict[]> =
         task {
-            match failed with
+            match retry.Waiting with
             | ValueSome f -> return Array.create requests.Length (Verdict.WriteFailed $"slot marks failed earlier: {f}")
             | ValueNone ->
                 do! gate.WaitAsync ct
@@ -345,7 +383,7 @@ type SlotMarks
     /// Waits on the gate without async: it runs only at an import or a key refresh that writes
     /// floors, off the signing path, and waits for at most one PTC burst's fsync.
     member _.RaiseFloor(floorKeys: PubKey list, slot: Slot) : Result<unit, string> =
-        match failed with
+        match retry.Waiting with
         | ValueSome f -> Error $"slot marks failed earlier: {f}"
         | ValueNone ->
             gate.Wait()
@@ -398,31 +436,18 @@ type SlotMarks
             finally
                 gate.Release() |> ignore
 
-    /// Rewrites the log as one record per key and mark (the snapshot). Atomic through IMarkFile.Replace.
+    /// Rewrites the log as one record per key and mark (the snapshot). Atomic through
+    /// IMarkFile.Replace. After a failed write it is also a try: when it succeeds, signing resumes.
     member _.Compact() : Result<unit, string> =
         gate.Wait()
 
         try
             try
-                let records =
-                    [
-                        SlotRecord.header gvr
-                        for s in byId do
-                            SlotRecord.key s.Id s.Key
-                        for s in byId do
-                            match s.Marks.PayloadAttestation with
-                            | ValueSome m -> SlotRecord.mark s.Id SlotMarkKind.PayloadAttestation m
-                            | ValueNone -> ()
-
-                            match s.Marks.PayloadEnvelope with
-                            | ValueSome m -> SlotRecord.mark s.Id SlotMarkKind.PayloadEnvelope m
-                            | ValueNone -> ()
-                    ]
-
-                file.Replace(Array.concat records)
+                file.Replace(snapshot ())
+                retry.Succeeded()
                 Ok()
             with e ->
-                failed <- ValueSome e.Message
+                retry.Failed e.Message
                 Error $"slot marks compaction failed: {e.Message}"
         finally
             gate.Release() |> ignore

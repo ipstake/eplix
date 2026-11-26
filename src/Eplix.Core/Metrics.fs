@@ -437,6 +437,35 @@ module Metrics =
     /// The states the gauge reports, as (signer, state) pairs.
     let signerStatesNow () = [ for KeyValue(s, st) in signerStates -> s, st ]
 
+    /// Since when each slashing store (slashing_db, slot_marks) cannot write, as Unix seconds;
+    /// 0 while it writes. Read at scrape time from the stores the runner registers.
+    let private slashingStores =
+        System.Collections.Concurrent.ConcurrentDictionary<string, unit -> System.DateTimeOffset voption>()
+
+    let private storeDown (downSince: unit -> System.DateTimeOffset voption) =
+        match downSince () with
+        | ValueSome t -> t.ToUnixTimeSeconds()
+        | ValueNone -> 0L
+
+    let private slashingStoreDownGauge =
+        meter.CreateObservableGauge<int64>(
+            "eplix_slashing_store_down_since_seconds",
+            System.Func<IEnumerable<Measurement<int64>>>(fun () ->
+                [
+                    for KeyValue(s, f) in slashingStores -> Measurement<int64>(storeDown f, tag "store" s)
+                ]
+                :> IEnumerable<_>),
+            unit = "s",
+            description = "Since when the slashing store cannot write and nothing signs, Unix time; 0 while it writes"
+        )
+
+    let watchSlashingStore (store: string) (downSince: unit -> System.DateTimeOffset voption) =
+        ignore slashingStoreDownGauge
+        slashingStores[store] <- downSince
+
+    /// The values the gauge reports, as (store, Unix seconds) pairs.
+    let slashingStoresDownNow () = [ for KeyValue(s, f) in slashingStores -> s, storeDown f ]
+
     // ---- Pre-Gloas builder flow (the legacy builder module) ----
 
     /// Proposals whose builder request failed or timed out, asked again for a local block.

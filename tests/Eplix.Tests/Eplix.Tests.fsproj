@@ -66,6 +66,7 @@
     <Compile Include="FuzzTests.fs" />
     <Compile Include="RunnerTests.fs" />
     <Compile Include="DomainTypeTests.fs" />
+    <Compile Include="SlashingRetryTests.fs" />
     <Compile Include="ChainAnchorTests.fs" />
     <Compile Include="NodeLossTests.fs" />
     <Compile Include="VcHarness.fs" />
